@@ -1,0 +1,339 @@
+/* Patch — one stylesheet. No framework, no build step. */
+
+:root {
+  --ground: #f4f2e4;   /* page background (the shell's warm ground) */
+  --card:   #fffeea;   /* cards, buttons, sticker cream */
+  --ink:    #121a0e;   /* text, outlines, halo edge, shadows */
+  --ink-2:  #4a4740;   /* secondary text */
+  --ink-3:  #7a766c;   /* tertiary */
+  --line:   #dddbd6;   /* hairlines, empty meters */
+  --blue:   #3090e1;   /* focus rings, egg spots */
+  --pill:   #0a6ee0;   /* primary button fill, links */
+  --yellow: #ffee6f;   /* egg, food meter, pressed segment */
+  --green:  #a9cf97;   /* play meter */
+
+  --top:    var(--un-safe-inset-top, env(safe-area-inset-top, 0px));
+  --bottom: var(--un-safe-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  /* Opaque, so the bridge can report Patch's ground to the shell bar. */
+  background: var(--ground);
+}
+
+body {
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: calc(20px + var(--top)) 16px calc(28px + var(--bottom));
+  display: flex;
+  flex-direction: column;
+}
+
+.beat { display: flex; flex-direction: column; gap: 14px; }
+[hidden] { display: none !important; }
+
+h1 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0;
+  text-wrap: balance;
+}
+/* Room for the fixed Skip button while onboarding is on screen. */
+body:not(.home) h1 { padding-right: 56px; }
+
+h2 { font-size: 19px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
+p  { margin: 0; }
+
+.hint  { color: var(--ink-2); }
+.line  { color: var(--ink); }
+.small { color: var(--ink-3); font-size: 13px; }
+
+.loop { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+
+.stamp {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* ---- buttons ------------------------------------------------------------ */
+
+.btn {
+  appearance: none;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn.primary { background: var(--pill); border-color: var(--pill); color: #fff; }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.actions .btn { flex: 1 1 auto; }
+
+.link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--pill);
+  font-weight: 700;
+  cursor: pointer;
+}
+a { color: var(--pill); font-weight: 700; }
+
+.skip {
+  position: fixed;
+  top: calc(12px + var(--top));
+  right: 12px;
+  z-index: 20;
+  appearance: none;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+body.home .skip { display: none; }
+
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* ---- stage, sticker, effects -------------------------------------------- */
+
+.stage {
+  position: relative;
+  height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pet-box {
+  width: 168px;
+  height: 168px;
+  position: relative;
+}
+
+.pet-box svg { display: block; width: 100%; height: 100%; }
+
+/* The live Lottie sits above its own static clone. Never put a CSS filter on
+   the live one: a drop-shadow stack measured 8 fps where the clone-with-an-
+   SVG-filter measures 60. */
+.sticker { position: relative; }
+.sticker > svg { position: relative; z-index: 1; }
+.sticker > svg.halo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 1;
+  visibility: visible;
+  /* visibility flips only once the fade has finished, so the faded-out
+     clone (a whole filtered SVG) stops being painted while the pet is
+     animating instead of riding along at opacity 0. */
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+  pointer-events: none;
+}
+.sticker.alive > svg.halo { opacity: 0; visibility: hidden; }
+
+.pet-box.hop { transition: transform 0.22s cubic-bezier(.3,1.4,.5,1); transform: translateY(-22px); }
+.pet-box.leap { transition: transform 0.38s cubic-bezier(.25,1.2,.4,1); transform: translate(-36px, -40px) rotate(-8deg); }
+
+/* One-shot effects: top right of the stage, never over the face. */
+.fx {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 110px;
+  height: 110px;
+  pointer-events: none;
+  z-index: 3;
+}
+.fx svg { display: block; width: 100%; height: 100%; }
+
+.speech {
+  position: absolute;
+  top: 8px;
+  right: 118px;
+  z-index: 4;
+  background: var(--card);
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ball-slot {
+  position: absolute;
+  bottom: 34px;
+  left: -80px;
+  width: 64px;
+  height: 64px;
+  z-index: 2;
+  pointer-events: none;
+}
+.ball-slot.rolling { transition: left 0.55s ease-out, transform 0.55s ease-out; }
+.ball-slot.on { left: 40px; }
+.ball-slot.out { left: -80px; }
+.ball-slot svg { display: block; width: 100%; height: 100%; }
+
+/* ---- the egg ------------------------------------------------------------ */
+
+.egg {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  line-height: 0;
+  /* Static content is rasterised once, so a filter stack is fine here. */
+  filter:
+    drop-shadow(0 -3px 0 var(--card)) drop-shadow(0 3px 0 var(--card))
+    drop-shadow(-3px 0 0 var(--card)) drop-shadow(3px 0 0 var(--card))
+    drop-shadow(-2px -2px 0 var(--card)) drop-shadow(2px -2px 0 var(--card))
+    drop-shadow(-2px 2px 0 var(--card)) drop-shadow(2px 2px 0 var(--card))
+    drop-shadow(0 -5px 0 var(--ink)) drop-shadow(0 5px 0 var(--ink))
+    drop-shadow(-5px 0 0 var(--ink)) drop-shadow(5px 0 0 var(--ink))
+    drop-shadow(7px 9px 0 var(--ink));
+  animation: wobble 2.4s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+.egg:disabled { cursor: default; }
+.egg .crack { opacity: 0; }
+.egg .crack.on { opacity: 1; }
+
+@keyframes wobble {
+  0%, 100% { transform: rotate(-3deg); }
+  50%      { transform: rotate(3deg); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25%      { transform: translateX(-7px) rotate(-4deg); }
+  75%      { transform: translateX(7px) rotate(4deg); }
+}
+.egg.shake  { animation: shake 0.3s ease-in-out 1; }
+.egg.shake2 { animation: shake 0.3s ease-in-out 2; }
+
+/* ---- meters, cards, fields ---------------------------------------------- */
+
+.meters { display: flex; flex-direction: column; gap: 8px; }
+.meter-row { display: flex; align-items: center; gap: 10px; }
+.meter-label { width: 42px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.meter {
+  flex: 1;
+  height: 14px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.fill { display: block; height: 100%; width: 0; transition: width 0.35s ease; }
+.fill.food { background: var(--yellow); }
+.fill.play { background: var(--green); }
+
+.card {
+  background: var(--card);
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card-meta  { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.card-count { font-size: 14px; color: var(--ink-2); }
+.card-ready { font-size: 14px; color: var(--ink-2); }
+.quote { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; }
+
+.bridge { color: var(--ink-2); }
+
+.segmented {
+  display: flex;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  overflow: hidden;
+  align-self: stretch;
+}
+.seg {
+  appearance: none;
+  flex: 1;
+  height: 44px;
+  border: 0;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.seg + .seg { border-left: 1.5px solid var(--ink); }
+.seg.on { background: var(--yellow); }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.field input {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+
+.payoff { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.tally  { color: var(--ink-2); font-weight: 700; }
+
+.foot {
+  display: flex;
+  gap: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+dialog {
+  max-width: 340px;
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--ink);
+  padding: 20px;
+}
+dialog::backdrop { background: rgba(18, 26, 14, 0.4); }
+dialog p + p { margin-top: 10px; }
+dialog .actions { margin-top: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .egg { animation: none; }
+  .egg.shake, .egg.shake2 { animation: none; }
+  .pet-box.hop, .pet-box.leap { transition: none; transform: none; }
+  .ball-slot.rolling { transition: none; }
+  .sticker > svg.halo { transition: none; }
+  .fill { transition: none; }
+}

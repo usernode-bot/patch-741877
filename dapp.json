@@ -1,3 +1,10 @@
 {
-  "secrets": []
+  "name": "Patch",
+  "description": "The Homeroom class pet. Hatch it, feed it, play with it, then help decide what it does next.",
+  "icon": { "emoji": "🐣" },
+  "secrets": [],
+  "tests": [
+    { "name": "Egg renders", "path": "/", "expectSelector": "#egg" },
+    { "name": "Onboarding shell has no console errors", "path": "/", "expectText": "An egg" }
+  ]
 }
