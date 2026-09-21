@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
   <script>
   // usernode-dev-console@1
   (function () {
@@ -64,131 +64,187 @@
   })();
   </script>
   <title>Patch</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%237c3aed'/><circle cx='50' cy='50' r='18' fill='white'/></svg>">
-  <!-- Tailwind, PRECOMPILED for this app (was cdn.tailwindcss.com's
-       in-browser engine plus an inline tailwind.config here). The config
-       moved to tailwind.config.js in the repo root; npm run build compiles
-       it to public/tailwind.css with Docker or Paketo on every image build, so the
-       stylesheet is regenerated from THIS commit's markup every deploy and
-       can never drift behind the code. ~7 KB of CSS instead of a ~400 KB
-       engine, and no flash of unstyled content.
-       Writing class names as whole literals is what keeps this working — a
-       class assembled from fragments at runtime (e.g. "bg-" + tone + "-500")
-       is invisible to the compiler. If you genuinely need runtime-generated
-       classes, swap this link for the platform-hosted engine instead:
-       <script src="/usernode-tailwind/v1/tailwind.js"></script> -->
-  <link rel="stylesheet" href="/tailwind.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23ffee6f' stroke='%23121a0e' stroke-width='6'/></svg>">
+  <link rel="stylesheet" href="/patch.css">
   <!-- The platform bridge, centrally hosted and loaded by RELATIVE path (the
        handler in server.js serves it under a plain "node server.js"; the
        platform's edge answers it everywhere else). Never vendor it and never
        write a hostname in front of it.
        It is NOT conditional on this app calling a bridge API: it is also how
        the app ANSWERS the shell, so a scaffold without it is invisible to
-       anything that asks the frame a question. Offline launch is one of those.
-       Another is the page's colour: the bridge reports this document's opaque
-       ground to the shell (#1581), which is what makes the platform bar above
-       the app take the app's tone instead of the viewer's theme (#1945). This
-       scaffold paints a dark page (bg-zinc-950 on the body element), so
-       without this tag a brand-new app sits under a light bar. -->
+       anything that asks the frame a question. Offline launch is one of
+       those. Another is the page's colour: the bridge reports this
+       document's opaque ground (--ground, the warm cream in patch.css) to
+       the shell, which is what makes the bar above the app take Patch's tone
+       instead of the viewer's theme. -->
   <script src="/usernode-bridge/v1/bridge.js"></script>
 </head>
-<body class="bg-zinc-950 text-zinc-100 min-h-screen">
-  <main class="max-w-md mx-auto px-4 py-10 flex flex-col gap-6">
+<body>
 
-    <!-- usernode-starter-notice@1 — starter-template messaging. When building
-         the user's real app, replace this whole screen and delete this block,
-         both sentinel comments included. -->
-    <section class="rounded-2xl border border-violet-500/30 bg-gradient-to-b from-violet-600/20 to-transparent p-6 text-center flex flex-col items-center gap-3">
-      <span class="inline-block rounded-full bg-violet-600/20 text-violet-300 text-xs font-semibold uppercase tracking-wide px-3 py-1">Starter template</span>
-      <h1 class="text-2xl font-bold">Patch</h1>
-      <p class="text-sm text-zinc-300 leading-relaxed">Welcome to your new app! Everything on this screen is placeholder content that came with it.</p>
-      <p class="text-sm text-zinc-300 leading-relaxed">Tap <strong class="text-violet-300 font-semibold">Improve</strong> in the header, describe what you'd like in plain English, and it will be turned into your real app.</p>
-    </section>
+<button id="skip" type="button" class="skip">Skip</button>
 
-    <section>
-      <h2 class="text-sm font-medium text-zinc-500 mb-2 px-1">What's already working</h2>
-      <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 divide-y divide-zinc-800">
-        <div class="flex items-start gap-3 p-4">
-          <svg class="w-5 h-5 text-violet-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-sm font-semibold text-zinc-100">Sign-in</p>
-            <p class="text-sm text-zinc-400">You're signed in through Homeroom automatically — no accounts to build.</p>
-          </div>
-        </div>
-        <div class="flex items-start gap-3 p-4">
-          <svg class="w-5 h-5 text-violet-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-sm font-semibold text-zinc-100">Database</p>
-            <p class="text-sm text-zinc-400">Your app has its own private database, ready to store things.</p>
-          </div>
-        </div>
-        <div class="flex items-start gap-3 p-4">
-          <svg class="w-5 h-5 text-violet-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7 7a1 1 0 0 1-1.4 0l-3-3a1 1 0 1 1 1.4-1.4L9 11.6l6.3-6.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-          <div>
-            <p class="text-sm font-semibold text-zinc-100">Live API</p>
-            <p class="text-sm text-zinc-400">The example below talks to a real server — try it.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-    <!-- /usernode-starter-notice@1 -->
+<main id="app" data-step="egg">
 
-    <section class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col items-center gap-5">
-      <div class="w-full flex items-baseline justify-between gap-2">
-        <h2 class="text-sm font-medium text-zinc-500">Try the example</h2>
-        <span class="text-xs text-zinc-600">This example will be replaced</span>
-      </div>
-
-      <button id="press-btn" class="w-32 h-32 rounded-full bg-violet-600 hover:bg-violet-500 active:scale-95 transition-all text-white text-xl font-bold shadow-lg shadow-violet-600/30">
-        Press!
+  <!-- Beat 1 — egg -->
+  <section class="beat" data-beat="egg">
+    <h1>An egg. It's yours.</h1>
+    <p class="hint" id="egg-hint">Tap to hatch.</p>
+    <div class="stage" id="egg-stage">
+      <button id="egg" type="button" class="egg" aria-label="Tap to hatch the egg">
+        <svg viewBox="0 0 120 140" width="120" height="140" aria-hidden="true">
+          <path class="shell" d="M60 6 C90 6 112 52 112 86 C112 116 88 134 60 134 C32 134 8 116 8 86 C8 52 30 6 60 6 Z"
+                fill="#ffee6f" stroke="#121a0e" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M32 34 C24 48 20 64 20 78" fill="none" stroke="#fffeea" stroke-width="7" stroke-linecap="round" opacity="0.9"/>
+          <circle cx="44" cy="62" r="7" fill="#3090e1"/>
+          <circle cx="78" cy="48" r="5" fill="#3090e1"/>
+          <circle cx="74" cy="96" r="8" fill="#3090e1"/>
+          <path class="crack" d="M60 14 L52 36 L68 46 L56 66" fill="none" stroke="#121a0e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="crack" d="M18 74 L34 82 L22 96 L38 104" fill="none" stroke="#121a0e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="crack" d="M104 78 L88 88 L102 100 L84 112" fill="none" stroke="#121a0e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
+      <div class="pet-box hatch-box" id="hatch-box" hidden></div>
+      <div class="fx" id="egg-fx"></div>
+    </div>
+  </section>
 
-      <div id="count" class="text-lg text-zinc-400">0 total presses</div>
-
-      <div class="w-full max-w-sm">
-        <h3 class="text-sm font-medium text-zinc-500 mb-2 text-center">Leaderboard</h3>
-        <div id="leaderboard" class="space-y-1"></div>
+  <!-- Beat 2 — pet (also the home screen) -->
+  <section class="beat" data-beat="pet" hidden>
+    <h1 id="pet-title">Meet your Homeroom pet.</h1>
+    <p class="line" id="pet-line"></p>
+    <div class="stage">
+      <div class="pet-box sticker lottie pet" id="pet-sticker"></div>
+      <div class="ball-slot" id="pet-ball" hidden></div>
+      <div class="speech" id="pet-speech" hidden></div>
+      <div class="fx" id="pet-fx"></div>
+    </div>
+    <div class="meters">
+      <div class="meter-row">
+        <span class="meter-label">Food</span>
+        <div class="meter"><span class="fill food" id="meter-food"></span></div>
       </div>
-    </section>
+      <div class="meter-row">
+        <span class="meter-label">Play</span>
+        <div class="meter"><span class="fill play" id="meter-play"></span></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btn-feed">Feed 🍎</button>
+      <button type="button" class="btn" id="btn-play">Play</button>
+    </div>
+    <p class="bridge" id="bridge" hidden>
+      Feels like something's missing? Someone said so too.
+      <a href="#" id="bridge-link">See what they said →</a>
+    </p>
+    <footer class="foot" id="home-foot" hidden>
+      <button type="button" class="link" id="btn-about">About Patch</button>
+      <button type="button" class="link" id="btn-reset" hidden>Start over</button>
+    </footer>
+  </section>
 
-    <p class="text-center text-xs text-zinc-600">Built on Homeroom — this template screen disappears once you build your real app.</p>
-  </main>
+  <!-- Beat 3 — feedback -->
+  <section class="beat" data-beat="feedback" hidden>
+    <h1 id="fb-title">Maya said what could be better.</h1>
+    <article class="card">
+      <p class="card-meta" id="fb-meta">Maya · Feedback on Patch</p>
+      <blockquote class="quote" id="fb-text"></blockquote>
+      <p class="card-count" id="fb-count">4 people agree.</p>
+    </article>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btn-agree">👍 Agree</button>
+      <button type="button" class="btn" id="btn-fb-skip">Skip</button>
+    </div>
+    <p class="hint">Anyone can say what could be better. It's the smallest way to help.</p>
+  </section>
 
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token') || '';
-    const headers = token ? { 'x-usernode-token': token } : {};
+  <!-- Beat 4 — proposal -->
+  <section class="beat" data-beat="proposal" hidden>
+    <p class="stamp">Later that day</p>
+    <h1 id="pr-title">Noor built it.</h1>
+    <article class="card">
+      <p class="card-meta" id="pr-meta">Play throws a ball · a change by Noor</p>
+      <p class="card-body" id="pr-addresses">Addresses Maya's feedback</p>
+      <p class="card-ready">Preview ready.</p>
+    </article>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btn-try">Try it →</button>
+    </div>
+    <p class="hint">Feedback turned into a change. Now everyone gets to try it before it's in.</p>
+  </section>
 
-    async function loadLeaderboard() {
-      const res = await fetch('/api/leaderboard', { headers });
-      if (!res.ok) return;
-      const { leaderboard } = await res.json();
-      const el = document.getElementById('leaderboard');
-      if (!leaderboard.length) {
-        el.innerHTML = '<p class="text-center text-zinc-600 text-sm">No presses yet</p>';
-        return;
-      }
-      el.innerHTML = leaderboard.map((r, i) =>
-        '<div class="flex justify-between px-3 py-1 rounded ' + (i === 0 ? 'bg-violet-600/20 text-violet-300' : 'text-zinc-400') + '">' +
-        '<span>' + (i + 1) + '. ' + r.username + '</span>' +
-        '<span class="font-mono">' + r.presses + '</span></div>'
-      ).join('');
-      const total = leaderboard.reduce((s, r) => s + parseInt(r.presses), 0);
-      document.getElementById('count').textContent = total + ' total presses';
-    }
+  <!-- Beat 5 — try -->
+  <section class="beat" data-beat="try" hidden>
+    <h1>This is Patch with the change.</h1>
+    <p class="hint">Play again.</p>
+    <div class="stage">
+      <div class="pet-box sticker lottie pet" id="try-sticker"></div>
+      <div class="ball-slot" id="try-ball" hidden></div>
+      <div class="speech" id="try-speech" hidden></div>
+      <div class="fx" id="try-fx"></div>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btn-try-play">Play</button>
+    </div>
+    <div class="segmented" role="group" aria-label="Before or after the change">
+      <button type="button" class="seg" id="seg-before">Before</button>
+      <button type="button" class="seg on" id="seg-after" aria-pressed="true">After</button>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="btn-decide">Decide →</button>
+    </div>
+  </section>
 
-    document.getElementById('press-btn').addEventListener('click', async () => {
-      try {
-        const res = await fetch('/api/press', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
-        });
-        if (res.ok) loadLeaderboard();
-        else if (res.status === 401) document.getElementById('count').textContent = 'Sign in to press!';
-      } catch {}
-    });
+  <!-- Beat 6 — vote -->
+  <section class="beat" data-beat="vote" hidden>
+    <h1>Should Play throw a ball?</h1>
+    <p class="hint">Vote after trying. Only people who used Patch this week can vote.</p>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btn-yes">Yes</button>
+      <button type="button" class="btn" id="btn-no">No</button>
+    </div>
+    <div class="field">
+      <label for="vote-name">Vote as</label>
+      <input id="vote-name" type="text" maxlength="24" placeholder="your pet's name" autocomplete="off">
+      <p class="small">The name is your pet's. You can change it later.</p>
+    </div>
+    <div id="vote-done" hidden>
+      <p class="payoff">you helped shape that 👀</p>
+      <p class="tally" id="vote-tally"></p>
+      <div class="actions">
+        <button type="button" class="btn primary" id="btn-continue">Continue →</button>
+      </div>
+    </div>
+  </section>
 
-    loadLeaderboard();
-  </script>
+  <!-- Beat 7 — shipped -->
+  <section class="beat" data-beat="shipped" hidden>
+    <h1>It's in.</h1>
+    <div class="stage">
+      <div class="pet-box sticker lottie pet" id="ship-sticker"></div>
+      <div class="ball-slot on" id="ship-ball"></div>
+      <div class="fx" id="ship-fx"></div>
+    </div>
+    <p class="line">Votes are in. The ball is part of Patch now, for everyone.</p>
+    <p class="loop">Build → Suggest → Try → Decide</p>
+    <p class="line">Apps here get better when the people using them help shape what comes next.</p>
+    <div class="actions">
+      <button type="button" class="btn primary" id="btn-enter">Enter Homeroom →</button>
+    </div>
+  </section>
+
+</main>
+
+<dialog id="about">
+  <h2>About Patch</h2>
+  <p>A tiny app built on Homeroom. Hatch a pet, feed it, play with it, and help decide what it does next.</p>
+  <p class="small">Animated emoji by Google, CC BY 4.0, from the Noto Animated Emoji set.</p>
+  <div class="actions">
+    <button type="button" class="btn" id="about-close">Close</button>
+  </div>
+</dialog>
+
+<script src="/emoji-manifest.js"></script>
+<script src="/vendor/lottie_svg.min.js"></script>
+<script src="/patch.js"></script>
 </body>
 </html>
