@@ -5,6 +5,7 @@
   "secrets": [],
   "tests": [
     { "name": "Egg renders", "path": "/", "expectSelector": "#egg" },
-    { "name": "Onboarding shell has no console errors", "path": "/", "expectText": "An egg" }
+    { "name": "Onboarding shell has no console errors", "path": "/", "expectText": "An egg" },
+    { "name": "Change pet dialog renders in shell", "path": "/", "expectSelector": "#change-pet" }
   ]
 }

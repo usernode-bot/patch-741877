@@ -87,10 +87,12 @@ function pgStore() {
           agreed     BOOLEAN NOT NULL DEFAULT FALSE,
           vote       TEXT,
           ball       BOOLEAN NOT NULL DEFAULT FALSE,
+          chosen_species TEXT,
           hatched_at TIMESTAMPTZ,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS chosen_species TEXT`);
       await pool.query(`COMMENT ON TABLE pets IS 'staging:private'`);
     },
     async get(userId, username) {
@@ -110,11 +112,12 @@ function pgStore() {
     async save(pet) {
       const { rows } = await pool.query(`
         UPDATE pets SET username = $2, name = $3, food = $4, play = $5, plays = $6,
-               step = $7, agreed = $8, vote = $9, ball = $10, hatched_at = $11,
-               updated_at = NOW()
+               step = $7, agreed = $8, vote = $9, ball = $10, chosen_species = $11,
+               hatched_at = $12, updated_at = NOW()
         WHERE user_id = $1 RETURNING *
       `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.plays,
-          pet.step, pet.agreed, pet.vote, pet.ball, pet.hatched_at]);
+          pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
+          pet.hatched_at]);
       return rows[0];
     },
     async reset(userId) {
@@ -168,10 +171,15 @@ const PROPOSAL = {
 };
 
 function view(pet) {
+  var days = 0;
+  if (pet.hatched_at) {
+    days = Math.max(0, Math.floor((Date.now() - new Date(pet.hatched_at).getTime()) / 86400000));
+  }
   return {
     pet: {
-      species: pet.species,
+      species: pet.chosen_species || pet.species,
       name: pet.name === undefined ? null : pet.name,
+      days: days,
       food: pet.food,
       play: pet.play,
       plays: pet.plays,
@@ -327,6 +335,31 @@ app.post('/api/vote', handler((pet, req, res) => {
   if (name) pet.name = name;
   pet.vote = choice;
   advance(pet, 'shipped');
+}));
+
+// Change the pet after it has hatched: a new name, a new type, or both.
+// The egg stays untouched so the hatch moment keeps its surprise.
+app.post('/api/pet', handler((pet, req, res) => {
+  if (pet.step === 'egg') {
+    res.status(400).json({ error: 'the egg has not hatched yet' });
+    return false;
+  }
+  const body = req.body || {};
+  if (body.species !== undefined) {
+    if (typeof body.species !== 'string' || SPECIES.indexOf(body.species) === -1) {
+      res.status(400).json({ error: 'unknown species' });
+      return false;
+    }
+    pet.chosen_species = body.species;
+  }
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string') {
+      res.status(400).json({ error: 'name must be a string' });
+      return false;
+    }
+    const name = body.name.trim().slice(0, 24);
+    pet.name = name ? name : null;
+  }
 }));
 
 app.post('/api/ship', handler((pet) => {
