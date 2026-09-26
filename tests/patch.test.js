@@ -22,6 +22,7 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
 process.env.USERNODE_JWT_PUBLIC_KEY = publicKey;
 
 const { app, speciesFor, SPECIES, EMOJI } = require('../server.js');
+const { dayLabel, anniversaryFor } = require('../public/patch.js');
 
 function tokenFor(id, username) {
   return jwt.sign(
@@ -70,6 +71,15 @@ test('every manifest entry has a vendored Lottie file', () => {
     const json = JSON.parse(fs.readFileSync(file, 'utf8'));
     assert.ok(json.op > 0, key + ' has no out point');
     assert.ok(json.fr > 0, key + ' has no frame rate');
+  }
+});
+
+test('dayLabel and anniversaryFor follow the 30-day rule', () => {
+  assert.equal(dayLabel(1), '1 day');
+  assert.equal(dayLabel(30), '30 days');
+  for (let d = 0; d < 95; d += 1) {
+    const expected = d >= 30 && d % 30 === 0 ? d / 30 : 0;
+    assert.equal(anniversaryFor(d), expected, 'day ' + d + ' anniversary');
   }
 });
 

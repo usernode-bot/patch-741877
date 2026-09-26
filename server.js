@@ -27,7 +27,7 @@ const APP_AUDIENCE = process.env.USERNODE_APP_ID
 // Paths that stay open without authentication. Add a path here (and add it
 // with `app.get`/`app.post` below) if you deliberately want it public.
 // Everything else requires a valid platform-issued JWT.
-const PUBLIC_API_PATHS = new Set(['/health']);
+const PUBLIC_API_PATHS = new Set(['/health', '/api/demo']);
 
 app.use(express.json());
 
@@ -170,7 +170,15 @@ const PROPOSAL = {
   no: 1, // one honest no, so the ballot is not a yes-button
 };
 
-function view(pet) {
+// Query flags the shell passes through as state.demo (a staging-only,
+// read-only display mode). A real anniversary needs day 30 to arrive; the
+// demo lets the check container and screenshots reach the badge today.
+function demoFromQuery(req) {
+  if (!IS_STAGING) return null;
+  return /(^|&)anniversary=1(&|$)/.test(req.queryString || '') ? 'anniversary' : null;
+}
+
+function view(pet, req) {
   var days = 0;
   if (pet.hatched_at) {
     days = Math.max(0, Math.floor((Date.now() - new Date(pet.hatched_at).getTime()) / 86400000));
@@ -194,6 +202,7 @@ function view(pet) {
     // data affordance, not a feature: /api/reset 404s in production and
     // every other screen is identical in both environments.
     staging: IS_STAGING,
+    demo: demoFromQuery(req),
     feedback: { ...FEEDBACK, agrees: FEEDBACK.agrees + (pet.agreed ? 1 : 0) },
     proposal: {
       ...PROPOSAL,
@@ -293,10 +302,11 @@ function handler(fn) {
   return async (req, res) => {
     try {
       const pet = await store.get(req.user.id, req.user.username);
+      req.queryString = (req.url || '').split('?')[1] || '';
       const out = await fn(pet, req, res);
       if (out === false) return; // the handler already answered (a 400)
       const saved = out === 'skip-save' ? pet : await store.save(pet);
-      res.json(view(saved));
+      res.json(view(saved, req));
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: err.message });
@@ -421,6 +431,13 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// A signed-out check container can't call /api/*, so hand the shell the
+// staging demo flag directly: same flag the API would have set, read-only.
+app.get('/api/demo', (req, res) => {
+  req.queryString = req.url.split('?')[1] || '';
+  res.json({ demo: demoFromQuery(req) });
+});
+
 async function start() {
   await store.init();
   const server = app.listen(port, () => console.log(`Listening on :${port}`));
@@ -447,4 +464,4 @@ if (require.main === module) {
   start().catch(err => { console.error(err); process.exit(1); });
 }
 
-module.exports = { app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view, FEEDBACK, PROPOSAL };
+module.exports = { app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view, FEEDBACK, PROPOSAL, demoFromQuery };
