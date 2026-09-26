@@ -14,6 +14,20 @@
       "visual": true,
       "id": "pet.happiness-meter",
       "impact": ["public/index.html", "public/patch.js", "public/patch.css", "server.js"]
+    },
+    {
+      "name": "Weight log renders on the pet page",
+      "path": "/?demo=1",
+      "expectSelector": "#weight-card",
+      "expectText": "Weight"
+    },
+    {
+      "name": "Weight chart draws the demo history",
+      "path": "/?demo=1",
+      "expectSelector": "#weight-chart:not([hidden])",
+      "visual": true,
+      "id": "pet.weight-log",
+      "impact": ["public/index.html", "public/patch.js", "public/patch.css", "server.js"]
     }
   ]
 }

@@ -133,6 +133,23 @@
       </div>
     </div>
     <p class="pet-stats small" id="pet-stats" hidden></p>
+    <section class="card weight" id="weight-card" hidden>
+      <h2>Weight</h2>
+      <p class="small" id="weight-empty" hidden>No weights yet. Log today's to start the chart.</p>
+      <div class="weight-row" id="weight-today-row" hidden>
+        <div class="field weight-field">
+          <label for="weight-input" id="weight-label">Today</label>
+          <input id="weight-input" type="number" inputmode="decimal" step="1" min="1"
+                 placeholder="grams" autocomplete="off">
+        </div>
+        <button type="button" class="btn" id="btn-weight-save">Save</button>
+      </div>
+      <p class="small weight-error" id="weight-error" hidden></p>
+      <svg id="weight-chart" viewBox="0 0 200 56" preserveAspectRatio="none" role="img"
+           aria-label="Weight chart" hidden></svg>
+      <p class="small" id="weight-chart-caption" hidden></p>
+      <ul class="weight-list" id="weight-list"></ul>
+    </section>
     <div class="actions">
       <button type="button" class="btn primary" id="btn-feed">Feed 🍎</button>
       <button type="button" class="btn" id="btn-play">Play</button>

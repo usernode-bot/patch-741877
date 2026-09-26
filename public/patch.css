@@ -313,6 +313,46 @@ body.home .skip { display: none; }
 .payoff { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
 .tally  { color: var(--ink-2); font-weight: 700; }
 
+/* ---- weight log ----------------------------------------------------------- */
+
+.weight { gap: 10px; }
+.weight h2 { margin: 0; }
+.weight-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.weight-field { flex: 1; }
+.weight-error { color: var(--ink-2); font-weight: 700; }
+#weight-chart {
+  display: block;
+  width: 100%;
+  height: 56px;
+}
+.weight-chart-caption { margin-top: -2px; }
+.weight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.weight-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+}
+.weight-list li + li { border-top: 1px solid var(--line); }
+.weight-day {
+  width: 84px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.weight-grams { font-weight: 700; }
+.weight-edit { margin-left: 10px; font-size: 13px; }
+
 .foot {
   display: flex;
   gap: 16px;
