@@ -15,6 +15,8 @@
   } catch (e) {}
   var authHeaders = token ? { 'x-usernode-token': token } : {};
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var SPECIES_KEYS = Object.keys(EMOJI).filter(function (k) { return EMOJI[k].species; });
+  var pickedSpecies = null;
 
   var anims = new Map();   // element -> looping animation, parked on frame 0
   var fxAnims = new Map(); // box id -> the one-shot currently playing in it
@@ -215,9 +217,21 @@
     return line;
   }
 
+  function capitalize(key) {
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+
+  function petStatsText() {
+    var e = EMOJI[state.pet.species];
+    return e.char + ' ' + capitalize(state.pet.species) + ' · ' +
+      state.pet.days + (state.pet.days === 1 ? ' day' : ' days') + ' with you';
+  }
+
   function renderPet(isHome) {
     $('pet-title').textContent = isHome ? (state.pet.name || 'Your pet') : 'Meet your Homeroom pet.';
     $('pet-line').textContent = speciesLine();
+    $('pet-stats').hidden = !isHome;
+    $('pet-stats').textContent = petStatsText();
     $('meter-food').style.width = state.pet.food + '%';
     $('meter-play').style.width = state.pet.play + '%';
     $('bridge').hidden = isHome || state.pet.plays < 2;
@@ -233,6 +247,61 @@
     var btn = $('btn-agree');
     btn.textContent = state.pet.agreed ? '👍 Agreed' : '👍 Agree';
     btn.disabled = !!state.pet.agreed;
+  }
+
+  // ---- change pet --------------------------------------------------------
+
+  function buildSpeciesPicker() {
+    var group = $('species-picker');
+    group.innerHTML = '';
+    SPECIES_KEYS.forEach(function (key) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'seg';
+      b.dataset.species = key;
+      b.textContent = EMOJI[key].char + ' ' + capitalize(key);
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        setPickedSpecies(b.dataset.species);
+      });
+      group.appendChild(b);
+    });
+  }
+
+  function setPickedSpecies(key) {
+    pickedSpecies = key;
+    Array.prototype.forEach.call($('species-picker').children, function (b) {
+      var on = b.dataset.species === pickedSpecies;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function openChangePet() {
+    $('pet-name').value = state.pet.name || '';
+    setPickedSpecies(state.pet.species);
+    $('change-pet').showModal();
+  }
+
+  // A species swap must not reuse the cached Lottie animation or the static
+  // halo clone drawn from the old animal; clear both and let the next render
+  // build the sticker fresh.
+  function forgetStickers() {
+    ['pet-sticker', 'try-sticker', 'ship-sticker'].forEach(function (id) {
+      var el = $(id);
+      var a = anims.get(el);
+      if (a) { try { a.destroy(); } catch (e) {} anims.delete(el); }
+      Array.prototype.forEach.call(el.querySelectorAll('svg.halo'), function (n) { n.remove(); });
+    });
+  }
+
+  function savePet() {
+    return api('/api/pet', { name: $('pet-name').value, species: pickedSpecies })
+      .then(function (v) {
+        state = v;
+        $('change-pet').close();
+        renderPet(current === 'home');
+      });
   }
 
   function renderProposal() {
@@ -265,7 +334,7 @@
       preload(['hatch', 'sparkles', state.pet.species]);
     } else if (beat === 'pet') {
       renderPet(step === 'home');
-      sticker($('pet-sticker'), state.pet.species);
+      if (!anims.has($('pet-sticker'))) sticker($('pet-sticker'), state.pet.species);
       preload(['apple'].concat(state.pet.ball ? ['ball', 'hearts'] : []));
       if (opts.justHatched) {
         burst($('pet-fx'), 'sparkles');
@@ -384,6 +453,11 @@
 
   $('btn-about').addEventListener('click', function () { $('about').showModal(); });
   $('about-close').addEventListener('click', function () { $('about').close(); });
+  $('btn-change-pet').addEventListener('click', function () { openChangePet(); });
+  $('pet-cancel').addEventListener('click', function () { $('change-pet').close(); });
+  $('pet-save').addEventListener('click', guard(savePet));
+
+  buildSpeciesPicker();
 
   $('btn-reset').addEventListener('click', guard(function () {
     return api('/api/reset', {}).then(function () { window.location.reload(); });

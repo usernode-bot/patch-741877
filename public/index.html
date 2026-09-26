@@ -128,6 +128,7 @@
         <div class="meter"><span class="fill play" id="meter-play"></span></div>
       </div>
     </div>
+    <p class="pet-stats small" id="pet-stats" hidden></p>
     <div class="actions">
       <button type="button" class="btn primary" id="btn-feed">Feed 🍎</button>
       <button type="button" class="btn" id="btn-play">Play</button>
@@ -137,6 +138,7 @@
       <a href="#" id="bridge-link">See what they said →</a>
     </p>
     <footer class="foot" id="home-foot" hidden>
+      <button type="button" class="link" id="btn-change-pet">Change pet</button>
       <button type="button" class="link" id="btn-about">About Patch</button>
       <button type="button" class="link" id="btn-reset" hidden>Start over</button>
     </footer>
@@ -240,6 +242,22 @@
   <p class="small">Animated emoji by Google, CC BY 4.0, from the Noto Animated Emoji set.</p>
   <div class="actions">
     <button type="button" class="btn" id="about-close">Close</button>
+  </div>
+</dialog>
+
+<dialog id="change-pet">
+  <h2>Change pet</h2>
+  <div class="field">
+    <label for="pet-name">Name</label>
+    <input id="pet-name" type="text" maxlength="24" placeholder="your pet's name" autocomplete="off">
+  </div>
+  <div class="field">
+    <label>Type</label>
+    <div class="segmented" role="group" aria-label="Pet type" id="species-picker"></div>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn primary" id="pet-save">Save</button>
+    <button type="button" class="btn" id="pet-cancel">Cancel</button>
   </div>
 </dialog>
 

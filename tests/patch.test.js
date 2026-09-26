@@ -84,6 +84,8 @@ test('the loop: hatch, feed, play, agree, vote, ship', async () => {
 
   v = await (await call('POST', '/api/hatch', { token })).json();
   assert.equal(v.pet.step, 'pet');
+  assert.equal(typeof v.pet.days, 'number');
+  assert.ok(v.pet.days >= 0, 'days should be 0 or more once hatched');
 
   await call('POST', '/api/play', { token });
   v = await (await call('POST', '/api/play', { token })).json();
@@ -117,6 +119,48 @@ test('the loop: hatch, feed, play, agree, vote, ship', async () => {
 
   v = await (await call('POST', '/api/play', { token })).json();
   assert.equal(v.pet.play, 65);
+});
+
+test('pet stats show days from hatched_at and the hashed species', async () => {
+  const token = tokenFor('stats-tester', 'stella');
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.days, 0, 'an egg has no days yet');
+  v = await (await call('POST', '/api/hatch', { token })).json();
+  assert.equal(v.pet.days, 0, 'hatch day is day 0');
+  const pgViewShape = { species: v.pet.species, days: v.pet.days };
+  assert.ok(SPECIES.includes(pgViewShape.species));
+  assert.equal(pgViewShape.days, 0);
+});
+
+test('POST /api/pet changes name and species after hatching', async () => {
+  const token = tokenFor('change-tester', 'cleo');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('POST', '/api/pet', { token, body: { species: 'frog', name: 'Beans' } })).json();
+  assert.equal(v.pet.species, 'frog');
+  assert.equal(v.pet.name, 'Beans');
+
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.species, 'frog', 'the choice persists across a fresh read');
+  assert.equal(v.pet.name, 'Beans');
+
+  // The original hash stays stored; the choice wins only in the view.
+  v = await (await call('POST', '/api/pet', { token, body: { name: '' } })).json();
+  assert.equal(v.pet.species, 'frog', 'a name-only save keeps the chosen species');
+  assert.equal(v.pet.name, null, 'an empty name clears back to null');
+
+  const bad = await call('POST', '/api/pet', { token, body: { species: 'dragon' } });
+  assert.equal(bad.status, 400);
+
+  const badName = await call('POST', '/api/pet', { token, body: { name: 7 } });
+  assert.equal(badName.status, 400);
+});
+
+test('POST /api/pet refuses an unhatched egg', async () => {
+  const token = tokenFor('egg-tester', 'erin');
+  await (await call('GET', '/api/state', { token })).json();
+  const res = await call('POST', '/api/pet', { token, body: { species: 'frog' } });
+  assert.equal(res.status, 400);
 });
 
 // The shell is public so the platform's tokenless check and capture

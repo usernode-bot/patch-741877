@@ -258,6 +258,8 @@ body.home .skip { display: none; }
 .fill.food { background: var(--yellow); }
 .fill.play { background: var(--green); }
 
+.pet-stats { font-weight: 700; }
+
 .card {
   background: var(--card);
   border: 1.5px solid var(--ink);
@@ -328,6 +330,13 @@ dialog {
 dialog::backdrop { background: rgba(18, 26, 14, 0.4); }
 dialog p + p { margin-top: 10px; }
 dialog .actions { margin-top: 16px; }
+
+/* The species picker wraps like the vote ballot; the segmented pill shows
+   the chosen type with the same on state the Try screen's segments use. */
+dialog .segmented { flex-wrap: wrap; border-radius: 16px; }
+dialog .seg { height: 44px; min-width: 0; }
+dialog .segmented .seg { border-left: 0; }
+dialog .segmented .seg + .seg { border-left: 1.5px solid var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .egg { animation: none; }
