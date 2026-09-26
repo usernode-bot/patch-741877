@@ -2,7 +2,14 @@
 (function () {
   'use strict';
 
-  var EMOJI = window.PATCH_EMOJI.EMOJI;
+  var EMOJI;
+  // Node's test runner loads this file for the pure helpers below. The page
+  // code only ever runs in a browser, where `module` does not exist.
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { dayLabel: dayLabel, anniversaryFor: anniversaryFor };
+    return;
+  }
+  EMOJI = window.PATCH_EMOJI.EMOJI;
   var params = new URLSearchParams(window.location.search);
   // The platform injects ?token= on the iframe's first load. Remember it so a
   // reload without one (an offline open, a replayed navigation) still knows
@@ -25,6 +32,16 @@
   var current = 'egg';
   var feedLines = ['It counts.', 'Fed. Again.', 'nom'];
   var feedIndex = 0;
+  // ?anniversary=1 forces the badge on, staging only: the server confirms
+  // the flag via /api/demo (also reachable without a token, which check
+  // containers are). A signed-in visitor never sees the demo state.
+  var demoAnniversary = false;
+  if (params.get('anniversary') === '1') {
+    fetch('/api/demo').then(function (r) { return r.json(); }).then(function (v) {
+      demoAnniversary = v.demo === 'anniversary';
+      renderPet(current === 'home');
+    }).catch(function () {});
+  }
   var tryMode = 'after';
   var busy = false;
 
@@ -221,17 +238,47 @@
     return key.charAt(0).toUpperCase() + key.slice(1);
   }
 
+  function dayLabel(n) {
+    return n + (n === 1 ? ' day' : ' days');
+  }
+
+  function anniversaryFor(days) {
+    return days >= 30 && days % 30 === 0 ? Math.floor(days / 30) : 0;
+  }
+
   function petStatsText() {
     var e = EMOJI[state.pet.species];
     return e.char + ' ' + capitalize(state.pet.species) + ' · ' +
-      state.pet.days + (state.pet.days === 1 ? ' day' : ' days') + ' with you';
+      dayLabel(state.pet.days) + ' with you';
+  }
+
+  function anniversaryText(n) {
+    return '🎉 ' + dayLabel(n) + ' with you';
   }
 
   function renderPet(isHome) {
     $('pet-title').textContent = isHome ? (state.pet.name || 'Your pet') : 'Meet your Homeroom pet.';
     $('pet-line').textContent = speciesLine();
-    $('pet-stats').hidden = !isHome;
-    $('pet-stats').textContent = petStatsText();
+    var stats = $('pet-stats');
+    stats.hidden = !isHome;
+    var badge = document.getElementById('stat-anniversary');
+    if (badge) badge.remove();
+    if (isHome) {
+      var days = state.pet.days;
+      var anniversary = anniversaryFor(days);
+      if (demoAnniversary && state.demo) anniversary = Math.max(1, anniversary);
+      if (anniversary) {
+        badge = document.createElement('span');
+        badge.id = 'stat-anniversary';
+        badge.className = 'stat-badge';
+        badge.textContent = anniversaryText(anniversary * 30);
+        stats.appendChild(badge);
+        stats.appendChild(document.createTextNode(' '));
+      }
+      stats.appendChild(document.createTextNode(petStatsText()));
+    } else {
+      stats.textContent = '';
+    }
     $('meter-food').style.width = state.pet.food + '%';
     $('meter-play').style.width = state.pet.play + '%';
     $('bridge').hidden = isHome || state.pet.plays < 2;
@@ -554,5 +601,19 @@
     }).catch(function (err) {
       if (String(err.message).indexOf(' 401') === -1) console.error(err);
     });
+  } else if (demoAnniversary || params.get('anniversary') === '1') {
+    // Staging check containers have no token. Build the demo pet locally:
+    // same shape the API returns, never stored, never for a signed-in user.
+    state = {
+      pet: {
+        species: 'turtle', name: 'Staging demo pet', days: 30,
+        food: 80, play: 60, plays: 5, step: 'home',
+        agreed: true, vote: 'yes', ball: true,
+      },
+      demo: 'anniversary', staging: true,
+      feedback: { author: 'Staging demo user', text: 'Demo feedback.', agrees: 1 },
+      proposal: { author: 'Staging demo user', title: 'Demo proposal', yes: 1, no: 0 },
+    };
+    show('home');
   }
 })();
