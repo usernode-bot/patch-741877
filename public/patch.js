@@ -227,11 +227,46 @@
       state.pet.days + (state.pet.days === 1 ? ' day' : ' days') + ' with you';
   }
 
+  // One short mood line under the stats, chosen from days-with-you so it
+  // holds steady all day and steps to the next line tomorrow. Pure client
+  // logic over the existing stat; no new tables.
+  var MOOD_LINES = [
+    'Today your pet feels brand new.',
+    'Today your pet feels settled in.',
+    'Today your pet feels curious.',
+    'Today your pet feels bouncy.',
+    'Today your pet feels cozy.',
+    'Today your pet feels chatty.',
+    'Today your pet feels proud of you.',
+  ];
+
+  function moodLine() {
+    var d = Math.max(0, state.pet.days || 0);
+    return MOOD_LINES[d % MOOD_LINES.length];
+  }
+
+  // One of the dapp.json checks renders the tokenless shell. A `demo=1`
+  // boot skips the API entirely and puts a demo pet on the home screen, so
+  // the mood line (and the whole pet beat) is checkable without a token.
+  // It is a read-only display path: nothing is written anywhere.
+  function demoState() {
+    return {
+      pet: { species: 'turtle', name: 'Demo', days: 3, food: 60, play: 70,
+             plays: 0, agreed: false, vote: null, ball: true },
+      username: 'demo', staging: false,
+      feedback: { author: 'Maya', text: 'Play only makes it hop.', agrees: 4 },
+      proposal: { author: 'Noor', title: 'Play throws a ball', yes: 11, no: 1 },
+    };
+  }
+
   function renderPet(isHome) {
     $('pet-title').textContent = isHome ? (state.pet.name || 'Your pet') : 'Meet your Homeroom pet.';
     $('pet-line').textContent = speciesLine();
     $('pet-stats').hidden = !isHome;
     $('pet-stats').textContent = petStatsText();
+    var moodEl = $('pet-mood');
+    moodEl.hidden = !isHome;
+    moodEl.textContent = moodLine();
     $('meter-food').style.width = state.pet.food + '%';
     $('meter-play').style.width = state.pet.play + '%';
     $('bridge').hidden = isHome || state.pet.plays < 2;
@@ -547,7 +582,10 @@
   // With no platform token (a direct visit to the app's own address) there is
   // no pet to ask for: the markup already shows the egg, so leave it there
   // rather than firing a request that can only come back 401.
-  if (token) {
+  if (params.get('demo') === '1') {
+    state = demoState();
+    show('home');
+  } else if (token) {
     api('/api/state').then(function (v) {
       state = v;
       show(state.pet.step);

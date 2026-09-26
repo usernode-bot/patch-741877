@@ -259,6 +259,7 @@ body.home .skip { display: none; }
 .fill.play { background: var(--green); }
 
 .pet-stats { font-weight: 700; }
+.pet-mood { color: var(--ink-2); }
 
 .card {
   background: var(--card);

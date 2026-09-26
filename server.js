@@ -188,6 +188,7 @@ function view(pet) {
       vote: pet.vote === undefined ? null : pet.vote,
       ball: !!pet.ball,
     },
+    mood: moodLine(days),
     username: pet.username,
     // Staging previews get a Start over link in the home footer, because a
     // preview is the one place replaying onboarding makes sense. It is a
@@ -201,6 +202,24 @@ function view(pet) {
       no: PROPOSAL.no + (pet.vote === 'no' ? 1 : 0),
     },
   };
+}
+
+// The pet's mood of the day, derived from days-with-you. The list index is
+// deterministic in the day count, so the line holds steady all day and
+// steps to the next one at UTC midnight. No new tables; the client can
+// render its own copy when state is absent.
+const MOOD_LINES = [
+  'Today your pet feels brand new.',
+  'Today your pet feels settled in.',
+  'Today your pet feels curious.',
+  'Today your pet feels bouncy.',
+  'Today your pet feels cozy.',
+  'Today your pet feels chatty.',
+  'Today your pet feels proud of you.',
+];
+
+function moodLine(days) {
+  return MOOD_LINES[Math.max(0, days || 0) % MOOD_LINES.length];
 }
 
 // Steps only ever move forward. A stale tab can never rewind a member.
@@ -447,4 +466,4 @@ if (require.main === module) {
   start().catch(err => { console.error(err); process.exit(1); });
 }
 
-module.exports = { app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view, FEEDBACK, PROPOSAL };
+module.exports = { app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view, FEEDBACK, PROPOSAL, moodLine };
