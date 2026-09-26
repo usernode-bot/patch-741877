@@ -151,7 +151,28 @@ function memoryStore() {
   };
 }
 
+// Per-user, per-day weight entries. Private per user, so the table carries
+// the same `staging:private` marker as `pets`: staging copies the schema but
+// not the rows, and demo data is seeded separately below.
+async function ensureWeightsTable(pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS weights (
+      user_id   TEXT NOT NULL,
+      day       DATE NOT NULL,
+      grams     INTEGER NOT NULL CHECK (grams > 0 AND grams < 20000),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, day)
+    )
+  `);
+  await pool.query(`COMMENT ON TABLE weights IS 'staging:private'`);
+}
+
 const store = process.env.DATABASE_URL ? pgStore() : memoryStore();
+
+// A second, deliberately separate accessor: weights are keyed by (user, day)
+// and owned by req.user, not by the pet row. The memory store mirrors the pg
+// upsert semantics so tests and local runs behave identically.
+const weightsTable = new Map();
 
 // ---------------------------------------------------------------------------
 // The staged half of the story. In v1 the feedback and the proposal are
@@ -174,6 +195,8 @@ const PROPOSAL = {
   yes: 11,
   no: 1, // one honest no, so the ballot is not a yes-button
 };
+
+const MAX_CHART_POINTS = 14;
 
 function view(pet) {
   var days = 0;
@@ -433,6 +456,40 @@ app.post('/api/step', handler((pet, req, res) => {
   applyHappiness(pet, new Date());
 }));
 
+// Weight log. One entry per user per day (UTC), editable: a second save for
+// the same day overwrites it, so corrections and today's update are the same
+// call. Rows are keyed to req.user and never to a username string.
+app.get('/api/weights', async (req, res) => {
+  try {
+    const rows = await listWeights(req.user.id);
+    res.json({ weights: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/weights', async (req, res) => {
+  const userId = req.user.id;
+  const grams = Number(req.body && req.body.grams);
+  if (!Number.isFinite(grams) || grams <= 0 || grams > 20000) {
+    return res.status(400).json({ error: 'grams must be a number between 1 and 20000' });
+  }
+  const whole = Math.round(grams);
+  // A past day comes in as an explicit YYYY-MM-DD key (the Edit link on the
+  // card sends the entry's own day). Anything else falls back to today.
+  const bodyDay = req.body && typeof req.body.day === 'string' ? req.body.day : null;
+  const day = bodyDay && /^\d{4}-\d{2}-\d{2}$/.test(bodyDay) ? bodyDay : today();
+  try {
+    await saveWeight(userId, day, whole);
+    const rows = await listWeights(req.user.id);
+    res.json({ weights: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Staging only: wipe the caller's OWN row so onboarding can be replayed in a
 // preview. 404 in production, where there is nothing to replay.
 app.post('/api/reset', async (req, res) => {
@@ -444,6 +501,52 @@ app.post('/api/reset', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// "Today" is the UTC calendar day: one entry per day, one consistent day
+// boundary no matter where the member lives.
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function serializeWeights(rows) {
+  return rows.map(function (row) {
+    const day = row.day instanceof Date ? row.day.toISOString().slice(0, 10) : String(row.day);
+    return { day: day, grams: row.grams };
+  });
+}
+
+async function listWeights(userId) {
+  if (store.pool) {
+    const { rows } = await store.pool.query(
+      `SELECT day, grams FROM weights
+       WHERE user_id = $1
+       ORDER BY day DESC
+       LIMIT $2`,
+      [String(userId), MAX_CHART_POINTS],
+  );
+    return serializeWeights(rows);
+  }
+  const perUser = weightsTable.get(String(userId)) || new Map();
+  const rows = Array.from(perUser.entries())
+    .map(function (entry) { return { day: entry[0], grams: entry[1] }; })
+    .sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : 0; });
+  return rows.slice(0, MAX_CHART_POINTS);
+}
+
+async function saveWeight(userId, day, grams) {
+  if (store.pool) {
+    await store.pool.query(
+      `INSERT INTO weights (user_id, day, grams)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, day) DO UPDATE SET grams = EXCLUDED.grams, updated_at = NOW()`,
+      [String(userId), day, grams],
+    );
+    return;
+  }
+  const key = String(userId);
+  if (!weightsTable.has(key)) weightsTable.set(key, new Map());
+  weightsTable.get(key).set(day, grams);
+}
 
 // Static assets, including the HTML shell at GET /. The shell is public on
 // purpose: the platform's checks and capture containers navigate an app's
@@ -480,6 +583,9 @@ app.get('*', (req, res) => {
 
 async function start() {
   await store.init();
+  if (store.pool) {
+    await ensureWeightsTable(store.pool);
+  }
   const server = app.listen(port, () => console.log(`Listening on :${port}`));
   // Let Envoy retire idle upstream connections at 60s, with a 15s margin.
   server.keepAliveTimeout = 75_000;
@@ -506,5 +612,5 @@ if (require.main === module) {
 
 module.exports = {
   app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view,
-  FEEDBACK, PROPOSAL, applyHappiness,
+  FEEDBACK, PROPOSAL, applyHappiness, saveWeight, listWeights,
 };

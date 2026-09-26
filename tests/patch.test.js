@@ -21,7 +21,7 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
 });
 process.env.USERNODE_JWT_PUBLIC_KEY = publicKey;
 
-const { app, speciesFor, SPECIES, EMOJI, applyHappiness } = require('../server.js');
+const { app, speciesFor, SPECIES, EMOJI, applyHappiness, saveWeight, listWeights } = require('../server.js');
 
 function tokenFor(id, username) {
   return jwt.sign(
@@ -202,6 +202,77 @@ test('POST /api/pet refuses an unhatched egg', async () => {
   await (await call('GET', '/api/state', { token })).json();
   const res = await call('POST', '/api/pet', { token, body: { species: 'frog' } });
   assert.equal(res.status, 400);
+});
+
+test('weight log: one entry per day, editable, private per user', async () => {
+  const token = tokenFor('weight-tester', 'wren');
+
+  // A read before any entry exists is an empty list, not an error.
+  let v = await (await call('GET', '/api/weights', { token })).json();
+  assert.deepEqual(v.weights, []);
+
+  // Grams must be a sane positive number.
+  const badMissing = await call('POST', '/api/weights', { token, body: {} });
+  assert.equal(badMissing.status, 400);
+  const badZero = await call('POST', '/api/weights', { token, body: { grams: 0 } });
+  assert.equal(badZero.status, 400);
+  const badNegative = await call('POST', '/api/weights', { token, body: { grams: -3 } });
+  assert.equal(badNegative.status, 400);
+  const badHuge = await call('POST', '/api/weights', { token, body: { grams: 40000 } });
+  assert.equal(badHuge.status, 400);
+
+  // First save: one entry, dated today (UTC).
+  v = await (await call('POST', '/api/weights', { token, body: { grams: 812 } })).json();
+  assert.equal(v.weights.length, 1);
+  assert.equal(v.weights[0].grams, 812);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  assert.equal(v.weights[0].day, todayKey);
+
+  // Today's entry is editable: a second save overwrites it, still one row.
+  v = await (await call('POST', '/api/weights', { token, body: { grams: 815 } })).json();
+  assert.equal(v.weights.length, 1, 'saving twice in one day keeps one entry');
+  assert.equal(v.weights[0].grams, 815);
+
+  // Past days are corrected through their explicit day key (the client sends
+  // YYYY-MM-DD; a stale client date cannot fabricate another user's row).
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  v = await (await call('POST', '/api/weights', { token, body: { grams: 809, day: yesterday } })).json();
+  assert.equal(v.weights.length, 2);
+  const sorted = v.weights.slice().sort((a, b) => (a.day < b.day ? -1 : 1));
+  assert.equal(sorted[0].day, yesterday);
+  assert.equal(sorted[0].grams, 809);
+  assert.equal(sorted[1].day, todayKey);
+  assert.equal(sorted[1].grams, 815);
+
+  // Rows are keyed to the logged-in user, not to the browser.
+  const other = tokenFor('other-weight-tester', 'omar');
+  let v2 = await (await call('GET', '/api/weights', { token: other })).json();
+  assert.deepEqual(v2.weights, []);
+  await call('POST', '/api/weights', { token: other, body: { grams: 900 } });
+  v = await (await call('GET', '/api/weights', { token })).json();
+  assert.equal(v.weights.length, 2, "another user's entry never leaks into the list");
+  v2 = await (await call('GET', '/api/weights', { token: other })).json();
+  assert.equal(v2.weights.length, 1);
+
+  // A weight entry is written without touching the pet row or its step.
+  const state = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(state.pet.step, 'egg', 'logging a weight must not hatch or advance the pet');
+  assert.equal(state.pet.food, 40, 'the pet row is untouched by weight writes');
+});
+
+test('weight routes are deny-by-default without a token', async () => {
+  assert.equal((await call('GET', '/api/weights')).status, 401);
+  assert.equal((await call('POST', '/api/weights', { body: { grams: 500 } })).status, 401);
+});
+
+test('weight helpers round-trip through the store on both backends', async () => {
+  await saveWeight('helper-user', '2026-09-01', 700);
+  await saveWeight('helper-user', '2026-09-01', 705);
+  const rows = await listWeights('helper-user');
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0], { day: '2026-09-01', grams: 705 });
+  const empty = await listWeights('helper-user-other');
+  assert.deepEqual(empty, []);
 });
 
 // The shell is public so the platform's tokenless check and capture

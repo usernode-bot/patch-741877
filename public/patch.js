@@ -31,6 +31,8 @@
   var feedIndex = 0;
   var tryMode = 'after';
   var busy = false;
+  var weightEntries = [];
+  var editingDay = null;
 
   function $(id) { return document.getElementById(id); }
   function src(key) { return '/emoji/' + EMOJI[key].cp + '.json'; }
@@ -231,6 +233,170 @@
       state.pet.days + (state.pet.days === 1 ? ' day' : ' days') + ' with you';
   }
 
+  // ---- weight log ---------------------------------------------------------
+  // One entry per day (UTC), editable. The card lives on the home screen
+  // only, below the meters, so onboarding stays untouched.
+
+  function dayKey(offset) {
+    return new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10);
+  }
+
+  function shortDay(day) {
+    var d = new Date(day + 'T00:00:00Z');
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+
+  function sortedEntries() {
+    return weightEntries.slice().sort(function (a, b) {
+      return a.day < b.day ? 1 : a.day > b.day ? -1 : 0;
+    });
+  }
+
+  function fetchWeights() {
+    return api('/api/weights').then(function (res) {
+      weightEntries = res.weights || [];
+      renderWeight();
+    });
+  }
+
+  function showWeightError(text) {
+    var el = $('weight-error');
+    el.textContent = text;
+    el.hidden = false;
+  }
+
+  function saveWeight() {
+    $('weight-error').hidden = true;
+    var grams = Number($('weight-input').value);
+    if (!Number.isFinite(grams) || grams <= 0 || grams > 20000) {
+      showWeightError('Enter a weight in grams, then Save.');
+      return Promise.resolve();
+    }
+    var body = { grams: Math.round(grams) };
+    if (editingDay) body.day = editingDay;
+    return api('/api/weights', body).then(function (res) {
+      weightEntries = res.weights || [];
+      editingDay = null;
+      renderWeight();
+    }).catch(function () {
+      showWeightError('Saving failed. Try again.');
+    });
+  }
+
+  function renderWeight() {
+    var card = $('weight-card');
+    var isHome = current === 'home';
+    card.hidden = !isHome;
+    if (!isHome) return;
+
+    var entries = sortedEntries();
+    var todayKey = dayKey(0);
+    var todays = null;
+    entries.forEach(function (e) { if (e.day === todayKey) todays = e; });
+
+    $('weight-empty').hidden = entries.length > 0;
+
+    var input = $('weight-input');
+    var label = $('weight-label');
+    if (editingDay) {
+      label.textContent = 'Editing ' + shortDay(editingDay);
+    } else {
+      label.textContent = 'Today';
+      if (document.activeElement !== input) {
+        input.value = todays ? todays.grams : '';
+      }
+    }
+
+    // The demo route has no platform token, so saving is off there; the
+    // card still shows exactly what a signed-in member sees.
+    if (DEMO) {
+      input.value = todays ? todays.grams : '';
+      label.textContent = 'Today';
+    }
+    $('weight-today-row').hidden = DEMO;
+
+    var list = $('weight-list');
+    list.innerHTML = '';
+    entries.forEach(function (e) {
+      var li = document.createElement('li');
+      var day = document.createElement('span');
+      day.className = 'weight-day';
+      day.textContent = e.day === todayKey ? 'Today' : shortDay(e.day);
+      var grams = document.createElement('span');
+      grams.className = 'weight-grams';
+      grams.textContent = e.grams + ' g';
+      // The demo route has no platform token, so its entries are read-only.
+      if (!DEMO && e.day !== todayKey) {
+        var edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'link weight-edit';
+        edit.textContent = 'Edit';
+        edit.addEventListener('click', function () {
+          editingDay = e.day;
+          input.value = e.grams;
+          renderWeight();
+          input.focus();
+        });
+        grams.appendChild(edit);
+      }
+      li.appendChild(day);
+      li.appendChild(grams);
+      list.appendChild(li);
+    });
+
+    drawWeightChart(entries.slice().reverse());
+  }
+
+  function drawWeightChart(entriesAsc) {
+    var svg = $('weight-chart');
+    var caption = $('weight-chart-caption');
+    svg.innerHTML = '';
+    var pts = entriesAsc.slice(-14);
+    if (!pts.length) {
+      // SVGElement has no `hidden` property (that lives on HTMLElement), so
+      // the attribute is toggled directly or the chart never comes back.
+      svg.setAttribute('hidden', '');
+      caption.hidden = true;
+      return;
+    }
+    svg.removeAttribute('hidden');
+    var W = 200, H = 56, padX = 6, padTop = 8, padBottom = 10;
+    var xs = pts.map(function (_, i) {
+      return pts.length === 1 ? W / 2 : padX + i * (W - 2 * padX) / (pts.length - 1);
+    });
+    var min = Infinity, max = -Infinity;
+    pts.forEach(function (e) {
+      if (e.grams < min) min = e.grams;
+      if (e.grams > max) max = e.grams;
+    });
+    if (max === min) max = min + 1;
+    var ys = pts.map(function (e) {
+      return padTop + (1 - (e.grams - min) / (max - min)) * (H - padTop - padBottom);
+    });
+    var poly = document.createElementNS(SVGNS, 'polyline');
+    poly.setAttribute('points', pts.map(function (_, i) {
+      return xs[i].toFixed(1) + ',' + ys[i].toFixed(1);
+    }).join(' '));
+    poly.setAttribute('fill', 'none');
+    poly.setAttribute('stroke', 'var(--ink)');
+    poly.setAttribute('stroke-width', '2.5');
+    poly.setAttribute('vector-effect', 'non-scaling-stroke');
+    poly.setAttribute('stroke-linecap', 'round');
+    poly.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(poly);
+    var last = document.createElementNS(SVGNS, 'circle');
+    last.setAttribute('cx', xs[xs.length - 1].toFixed(1));
+    last.setAttribute('cy', ys[ys.length - 1].toFixed(1));
+    last.setAttribute('r', '3.5');
+    last.setAttribute('style', 'fill: var(--pill)');
+    svg.appendChild(last);
+    svg.setAttribute('aria-label', 'Weight chart, latest ' + pts[pts.length - 1].grams + ' grams');
+    caption.hidden = pts.length < 2;
+    if (pts.length > 1) {
+      caption.textContent = 'Last ' + pts.length + ' days · ' + min + '–' + max + ' g';
+    }
+  }
+
   function renderPet(isHome) {
     $('pet-title').textContent = isHome ? (state.pet.name || 'Your pet') : 'Meet your Homeroom pet.';
     $('pet-line').textContent = speciesLine();
@@ -242,6 +408,7 @@
     $('bridge').hidden = isHome || state.pet.plays < 2;
     $('home-foot').hidden = !isHome;
     $('btn-reset').hidden = !state.staging;
+    renderWeight();
   }
 
   function renderFeedback() {
@@ -339,6 +506,7 @@
       preload(['hatch', 'sparkles', state.pet.species]);
     } else if (beat === 'pet') {
       renderPet(step === 'home');
+      if (step === 'home') ensureWeights();
       if (!anims.has($('pet-sticker'))) sticker($('pet-sticker'), state.pet.species);
       preload(['apple'].concat(state.pet.ball ? ['ball', 'hearts'] : []));
       if (opts.justHatched) {
@@ -383,6 +551,15 @@
 
   function goStep(step) {
     return api('/api/step', { step: step }).then(function (v) { state = v; show(step); });
+  }
+
+  // The card is home-only; load its entries the first time the member
+  // actually lands on home, however they got there.
+  var weightsLoaded = false;
+  function ensureWeights() {
+    if (weightsLoaded || DEMO) return;
+    weightsLoaded = true;
+    fetchWeights().catch(function (err) { console.error(err); });
   }
 
   // ---- beat 1, the egg ---------------------------------------------------
@@ -461,6 +638,17 @@
   $('btn-change-pet').addEventListener('click', function () { openChangePet(); });
   $('pet-cancel').addEventListener('click', function () { $('change-pet').close(); });
   $('pet-save').addEventListener('click', guard(savePet));
+
+  // ---- weight log wiring ---------------------------------------------------
+  // Saving is a POST like every other action, so it goes through the same
+  // busy guard. Editing a past day sends its day key; today's save omits it.
+  $('btn-weight-save').addEventListener('click', guard(saveWeight));
+  $('weight-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      guard(saveWeight)();
+    }
+  });
 
   buildSpeciesPicker();
 
@@ -561,6 +749,12 @@
       },
       staging: true, feedback: null, proposal: null,
     };
+    weightEntries = [
+      { day: dayKey(4), grams: 802 },
+      { day: dayKey(3), grams: 806 },
+      { day: dayKey(2), grams: 803 },
+      { day: dayKey(1), grams: 808 },
+    ];
     show('home');
   } else if (token) {
 
