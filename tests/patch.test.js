@@ -21,7 +21,7 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
 });
 process.env.USERNODE_JWT_PUBLIC_KEY = publicKey;
 
-const { app, speciesFor, SPECIES, EMOJI } = require('../server.js');
+const { app, speciesFor, SPECIES, EMOJI, moodLine } = require('../server.js');
 
 function tokenFor(id, username) {
   return jwt.sign(
@@ -130,6 +130,33 @@ test('pet stats show days from hatched_at and the hashed species', async () => {
   const pgViewShape = { species: v.pet.species, days: v.pet.days };
   assert.ok(SPECIES.includes(pgViewShape.species));
   assert.equal(pgViewShape.days, 0);
+});
+
+test('the mood line is deterministic in days-with-you and rotates daily', async () => {
+  // Same day count, same line, wherever it is asked for.
+  assert.equal(moodLine(3), moodLine(3));
+  assert.equal(moodLine(0), moodLine(0));
+
+  // The first week walks through distinct lines, then the list cycles.
+  const week = [];
+  for (let d = 0; d < 7; d++) week.push(moodLine(d));
+  assert.equal(new Set(week).size, 7, 'each of the first seven days gets its own line');
+  assert.equal(moodLine(7), moodLine(0), 'the list cycles after a week');
+
+  // Every line is short, friendly and free of em dashes.
+  for (const line of week) {
+    assert.ok(line.length <= 60, 'mood lines stay short');
+    assert.ok(!line.includes('—'), 'no em dashes in user-facing copy');
+    assert.ok(!line.includes('\u2014'), 'no escaped em dashes either');
+  }
+
+  // A fresh hatch is day 0: the "brand new" line is the day-one mood.
+  const token = tokenFor('mood-tester', 'milo');
+  await call('POST', '/api/hatch', { token });
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.days, 0);
+  assert.equal(v.mood, moodLine(0));
+  assert.match(v.mood, /brand new/);
 });
 
 test('POST /api/pet changes name and species after hatching', async () => {

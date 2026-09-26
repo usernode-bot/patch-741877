@@ -6,6 +6,15 @@
   "tests": [
     { "name": "Egg renders", "path": "/", "expectSelector": "#egg" },
     { "name": "Onboarding shell has no console errors", "path": "/", "expectText": "An egg" },
-    { "name": "Change pet dialog renders in shell", "path": "/", "expectSelector": "#change-pet" }
+    { "name": "Change pet dialog renders in shell", "path": "/", "expectSelector": "#change-pet" },
+    {
+      "id": "home.pet-mood",
+      "name": "Pet mood line renders under the stats",
+      "path": "/?demo=1",
+      "expectSelector": "#pet-mood",
+      "expectText": "Today your pet feels bouncy.",
+      "visual": true,
+      "impact": ["public/index.html", "public/patch.js", "public/patch.css", "server.js"]
+    }
   ]
 }
