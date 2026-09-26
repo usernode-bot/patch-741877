@@ -242,6 +242,80 @@
     $('bridge').hidden = isHome || state.pet.plays < 2;
     $('home-foot').hidden = !isHome;
     $('btn-reset').hidden = !state.staging;
+    renderTricks();
+  }
+
+  // The trick checklist, a small card under the meters on the home beat.
+  // Each toggle is persisted by /api/trick; the server answer wins, so a
+  // failed toggle rolls the row back.
+  function renderTricks() {
+    var pet = state.pet;
+    var list = pet.tricks || [];
+    var done = list.filter(function (t) { return t.done; }).length;
+    var panel = $('trick-panel');
+    panel.hidden = current !== 'home';
+    $('trick-hint').textContent = done < 3 ? 'Teach one trick at a time.' : 'That is the full set.';
+    $('trick-done-note').hidden = done < 3;
+    $('trick-done-note').textContent = done < 3 ? done + ' of 3 so far.' : 'That is the full set.';
+    list.forEach(function (t) {
+      var btn = document.querySelector('.trick-check[data-trick="' + t.trick + '"]');
+      if (!btn) return;
+      btn.classList.toggle('on', !!t.done);
+      btn.setAttribute('aria-pressed', String(!!t.done));
+      btn.disabled = false;
+    });
+  }
+
+  function toggleTrick(t) {
+    if (DEMO) {
+      t.done = !t.done;
+      state.pet.tricks_complete = state.pet.tricks.every(function (x) { return x.done; });
+      if (state.pet.tricks_complete && !state.pet.tricks_celebrated) {
+        state.pet.tricks_celebrated = true;
+        renderTricks();
+        celebrate();
+      } else {
+        renderTricks();
+      }
+      return Promise.resolve();
+    }
+    return api('/api/trick', { trick: t.trick, done: !t.done }).then(function (v) {
+      state = v;
+      var allThree = state.pet.tricks && state.pet.tricks.length === 3 &&
+        state.pet.tricks.every(function (t) { return t.done; });
+      if (current === 'home') {
+        renderTricks();
+        wake($('pet-sticker'), 1);
+        if (allThree && !state.pet.tricks_celebrated) celebrate();
+      }
+    });
+  }
+
+  // ---- celebration -------------------------------------------------------
+  // One moment per pet. /api/trick stamps tricks_celebrated_at server-side on
+  // the run that completes the set, so a reload (or a re-render) never replays
+  // it until Start over clears the row.
+
+  var celebrating = false;
+
+  function celebrate() {
+    if (celebrating || reduce) return;
+    celebrating = true;
+    var overlay = $('celebrate');
+    var stickerEl = $('celebrate-sticker');
+    stickerEl.innerHTML = '';
+    var a = window.lottie.loadAnimation({
+      container: stickerEl, renderer: 'svg', loop: false, autoplay: true, path: src(state.pet.species),
+    });
+    $('celebrate-line').textContent = (state.pet.name || 'Your pet') + ' knows sit, stay and spin.';
+    burst($('celebrate-fx'), 'party');
+    overlay.hidden = false;
+    setTimeout(function () {
+      overlay.hidden = true;
+      stickerEl.innerHTML = '';
+      try { a.destroy(); } catch (e) {}
+      celebrating = false;
+    }, 3200);
   }
 
   function renderFeedback() {
@@ -468,6 +542,17 @@
     return api('/api/reset', {}).then(function () { window.location.reload(); });
   }));
 
+  // ---- trick checklist ---------------------------------------------------
+
+  Array.prototype.forEach.call(document.querySelectorAll('.trick-check'), function (btn) {
+    btn.addEventListener('click', guard(function () {
+      var row = (state.pet.tricks || []).filter(function (t) { return t.trick === btn.dataset.trick; })[0];
+      if (!row) return;
+      btn.disabled = true;
+      return toggleTrick(row);
+    }));
+  });
+
   // ---- beat 3, feedback --------------------------------------------------
 
   $('btn-agree').addEventListener('click', guard(function () {
@@ -558,6 +643,9 @@
         species: 'turtle', name: 'Demo', days: 3, food: 60, play: 45,
         plays: 2, step: 'home', agreed: false, vote: null, ball: true,
         happiness: 72,
+        tricks: [{ trick: 'sit', done: false }, { trick: 'stay', done: false }, { trick: 'spin', done: false }],
+        tricks_complete: false,
+        tricks_celebrated: false,
       },
       staging: true, feedback: null, proposal: null,
     };

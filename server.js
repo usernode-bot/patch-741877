@@ -40,6 +40,11 @@ app.use(express.json());
 
 const STEPS = ['egg', 'pet', 'feedback', 'proposal', 'try', 'vote', 'shipped', 'home'];
 
+// The trick-training checklist. A fixed list of three tricks, stored per pet
+// as three booleans plus the moment the full set was first celebrated: the
+// celebration replays never, even after a reload, until the pet starts over.
+const TRICKS = ['sit', 'stay', 'spin'];
+
 // Species is a pure function of the member id. Same member, same pet, on
 // every device, no reroll.
 function speciesFor(userId) {
@@ -64,6 +69,10 @@ function blankPet(userId, username) {
     agreed: false,
     vote: null,
     ball: false,
+    trick_sit: false,
+    trick_stay: false,
+    trick_spin: false,
+    tricks_celebrated_at: null,
     hatched_at: null,
   };
 }
@@ -91,6 +100,10 @@ function pgStore() {
           agreed     BOOLEAN NOT NULL DEFAULT FALSE,
           vote       TEXT,
           ball       BOOLEAN NOT NULL DEFAULT FALSE,
+          trick_sit     BOOLEAN NOT NULL DEFAULT FALSE,
+          trick_stay    BOOLEAN NOT NULL DEFAULT FALSE,
+          trick_spin    BOOLEAN NOT NULL DEFAULT FALSE,
+          tricks_celebrated_at TIMESTAMPTZ,
           chosen_species TEXT,
           hatched_at TIMESTAMPTZ,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -98,6 +111,10 @@ function pgStore() {
       `);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS chosen_species TEXT`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS happiness_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_sit BOOLEAN NOT NULL DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_stay BOOLEAN NOT NULL DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_spin BOOLEAN NOT NULL DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS tricks_celebrated_at TIMESTAMPTZ`);
       await pool.query(`COMMENT ON TABLE pets IS 'staging:private'`);
     },
     async get(userId, username) {
@@ -118,11 +135,14 @@ function pgStore() {
       const { rows } = await pool.query(`
         UPDATE pets SET username = $2, name = $3, food = $4, play = $5, happiness = $6,
                happiness_at = $7, plays = $8, step = $9, agreed = $10, vote = $11,
-               ball = $12, chosen_species = $13, hatched_at = $14, updated_at = NOW()
+               ball = $12, chosen_species = $13, hatched_at = $14,
+               trick_sit = $15, trick_stay = $16, trick_spin = $17,
+               tricks_celebrated_at = $18, updated_at = NOW()
         WHERE user_id = $1 RETURNING *
       `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.happiness, pet.happiness_at === undefined ? null : pet.happiness_at,
           pet.plays, pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
-          pet.hatched_at]);
+          pet.hatched_at, !!pet.trick_sit, !!pet.trick_stay, !!pet.trick_spin,
+          pet.tricks_celebrated_at === undefined ? null : pet.tricks_celebrated_at]);
       return rows[0];
     },
     async reset(userId) {
@@ -193,6 +213,12 @@ function view(pet) {
       agreed: !!pet.agreed,
       vote: pet.vote === undefined ? null : pet.vote,
       ball: !!pet.ball,
+      // The trick checklist, additive on top of the existing shape. The
+      // celebrated flag is what makes the celebration a once-per-pet moment:
+      // it stays true after the confetti, so a reload replays nothing.
+      tricks: TRICKS.map(function (trick) { return { trick: trick, done: !!pet['trick_' + trick] }; }),
+      tricks_complete: TRICKS.every(function (trick) { return !!pet['trick_' + trick]; }),
+      tricks_celebrated: !!pet.tricks_celebrated_at,
     },
     username: pet.username,
     // Staging previews get a Start over link in the home footer, because a
@@ -433,6 +459,24 @@ app.post('/api/step', handler((pet, req, res) => {
   applyHappiness(pet, new Date());
 }));
 
+// Toggle one trick on the checklist. The trick name is validated against the
+// fixed list; anything else is a 400, the same contract as /api/step.
+app.post('/api/trick', handler((pet, req, res) => {
+  const trick = req.body && req.body.trick;
+  const done = !!(req.body && req.body.done);
+  if (TRICKS.indexOf(trick) === -1) {
+    res.status(400).json({ error: 'unknown trick' });
+    return false;
+  }
+  pet['trick_' + trick] = done;
+  // Once, per pet. The run that completes the set stamps the celebration;
+  // every later toggle (or re-read) keeps the stamp, so the moment never
+  // replays on a reload. Start over clears it with everything else.
+  if (!pet.tricks_celebrated_at && TRICKS.every((t) => !!pet['trick_' + t])) {
+    pet.tricks_celebrated_at = new Date();
+  }
+}));
+
 // Staging only: wipe the caller's OWN row so onboarding can be replayed in a
 // preview. 404 in production, where there is nothing to replay.
 app.post('/api/reset', async (req, res) => {
@@ -506,5 +550,5 @@ if (require.main === module) {
 
 module.exports = {
   app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view,
-  FEEDBACK, PROPOSAL, applyHappiness,
+  FEEDBACK, PROPOSAL, applyHappiness, TRICKS,
 };
