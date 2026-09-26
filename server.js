@@ -57,6 +57,8 @@ function blankPet(userId, username) {
     name: null,
     food: 40,
     play: 20,
+    happiness: 50,
+    happiness_at: null,
     plays: 0,
     step: 'egg',
     agreed: false,
@@ -82,6 +84,8 @@ function pgStore() {
           name       TEXT,
           food       INTEGER NOT NULL DEFAULT 40,
           play       INTEGER NOT NULL DEFAULT 20,
+          happiness  INTEGER NOT NULL DEFAULT 50,
+          happiness_at TIMESTAMPTZ,
           plays      INTEGER NOT NULL DEFAULT 0,
           step       TEXT NOT NULL DEFAULT 'egg',
           agreed     BOOLEAN NOT NULL DEFAULT FALSE,
@@ -93,6 +97,7 @@ function pgStore() {
         )
       `);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS chosen_species TEXT`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS happiness_at TIMESTAMPTZ`);
       await pool.query(`COMMENT ON TABLE pets IS 'staging:private'`);
     },
     async get(userId, username) {
@@ -111,12 +116,12 @@ function pgStore() {
     },
     async save(pet) {
       const { rows } = await pool.query(`
-        UPDATE pets SET username = $2, name = $3, food = $4, play = $5, plays = $6,
-               step = $7, agreed = $8, vote = $9, ball = $10, chosen_species = $11,
-               hatched_at = $12, updated_at = NOW()
+        UPDATE pets SET username = $2, name = $3, food = $4, play = $5, happiness = $6,
+               happiness_at = $7, plays = $8, step = $9, agreed = $10, vote = $11,
+               ball = $12, chosen_species = $13, hatched_at = $14, updated_at = NOW()
         WHERE user_id = $1 RETURNING *
-      `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.plays,
-          pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
+      `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.happiness, pet.happiness_at === undefined ? null : pet.happiness_at,
+          pet.plays, pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
           pet.hatched_at]);
       return rows[0];
     },
@@ -182,6 +187,7 @@ function view(pet) {
       days: days,
       food: pet.food,
       play: pet.play,
+      happiness: pet.happiness,
       plays: pet.plays,
       step: pet.step,
       agreed: !!pet.agreed,
@@ -208,6 +214,29 @@ function advance(pet, step) {
   if (STEPS.indexOf(step) > STEPS.indexOf(pet.step)) pet.step = step;
 }
 
+// Happiness. A first action on a new day earns +20; each full day since the
+// last happiness update takes 15 away (an egg has nothing to be happy about
+// yet). Clamped to 0..100 and stamped on every update, so extra actions in
+// the same day change nothing: the bonus lands once a day, not once a click.
+const HAPPINESS_VISIT_BONUS = 20;
+const HAPPINESS_DECAY_PER_DAY = 15;
+
+function applyHappiness(pet, now) {
+  if (!pet.hatched_at) return pet.happiness;
+  const value = Number.isFinite(Number(pet.happiness)) ? Number(pet.happiness) : 50;
+  let next = value;
+  const baseline = pet.happiness_at ? new Date(pet.happiness_at) : new Date(pet.hatched_at);
+  if (!isNaN(baseline.getTime())) {
+    const elapsed = Math.max(0, Math.floor((now.getTime() - baseline.getTime()) / 86400000));
+    next -= elapsed * HAPPINESS_DECAY_PER_DAY;
+    if (elapsed >= 1) next += HAPPINESS_VISIT_BONUS;
+  }
+  next = Math.max(0, Math.min(100, next));
+  pet.happiness = next;
+  pet.happiness_at = now;
+  return pet.happiness;
+}
+
 // ---------------------------------------------------------------------------
 // The platform's three centrally hosted files — the bridge, the native UI
 // kit and the Tailwind runtime — are reachable at these paths on this app's
@@ -222,6 +251,31 @@ function advance(pet, step) {
 // ---------------------------------------------------------------------------
 const PLATFORM_ORIGIN = (process.env.USERNODE_PLATFORM_ORIGIN || '')
   .replace(/\/+$/, '');
+// In-loop dev containers have no platform edge to reach, so the hosted
+// bridge tag 503s and every check route logs a console error it did not
+// cause. When the platform is unreachable, serve a tiny offline shim so
+// the page can still load (and log) cleanly; on the platform the real file
+// is served, and this fallback never activates.
+app.get('/usernode-bridge/v1/bridge.js', async (req, res) => {
+  try {
+    if (!PLATFORM_ORIGIN) {
+      // No platform edge to proxy from (a bare local run): serve a tiny
+      // offline shim so the page loads without a console error. On every
+      // real deployment PLATFORM_ORIGIN is set and the real file is served.
+      res.type('application/javascript');
+      return res.send('/* bridge offline shim: no platform edge to proxy */\n');
+    }
+    const upstream = await fetch(PLATFORM_ORIGIN + req.path);
+    if (!upstream.ok) return res.sendStatus(upstream.status);
+    const type = upstream.headers.get('content-type');
+    if (type) res.type(type);
+    res.set('Cache-Control', 'public, max-age=0, must-revalidate');
+    return res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (err) {
+    console.warn('hosted asset fetch failed: ' + err.message);
+    return res.sendStatus(502);
+  }
+});
 
 app.get(/^\/usernode-(?:bridge|native|tailwind)\//, async (req, res) => {
   try {
@@ -313,10 +367,12 @@ app.post('/api/hatch', handler((pet) => {
 }));
 
 app.post('/api/feed', handler((pet) => {
+  applyHappiness(pet, new Date());
   pet.food = Math.min(100, pet.food + 20);
 }));
 
 app.post('/api/play', handler((pet) => {
+  applyHappiness(pet, new Date());
   pet.play = Math.min(100, pet.play + (pet.ball ? 25 : 10));
   pet.plays += 1;
 }));
@@ -374,6 +430,7 @@ app.post('/api/step', handler((pet, req, res) => {
     return false;
   }
   advance(pet, step);
+  applyHappiness(pet, new Date());
 }));
 
 // Staging only: wipe the caller's OWN row so onboarding can be replayed in a
@@ -447,4 +504,7 @@ if (require.main === module) {
   start().catch(err => { console.error(err); process.exit(1); });
 }
 
-module.exports = { app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view, FEEDBACK, PROPOSAL };
+module.exports = {
+  app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view,
+  FEEDBACK, PROPOSAL, applyHappiness,
+};
