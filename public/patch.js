@@ -4,6 +4,10 @@
 
   var EMOJI = window.PATCH_EMOJI.EMOJI;
   var params = new URLSearchParams(window.location.search);
+  // Staging-only demo: the screenshot/check route has no platform token, so
+  // with ?demo=1 the pet beat renders from a fixed demo pet. It never calls
+  // the API and production ignores the flag entirely.
+  var DEMO = params.get('demo') === '1';
   // The platform injects ?token= on the iframe's first load. Remember it so a
   // reload without one (an offline open, a replayed navigation) still knows
   // whose pet this is; storage can be refused in a cross-origin frame, which
@@ -234,6 +238,7 @@
     $('pet-stats').textContent = petStatsText();
     $('meter-food').style.width = state.pet.food + '%';
     $('meter-play').style.width = state.pet.play + '%';
+    $('meter-happy').style.width = state.pet.happiness + '%';
     $('bridge').hidden = isHome || state.pet.plays < 2;
     $('home-foot').hidden = !isHome;
     $('btn-reset').hidden = !state.staging;
@@ -544,10 +549,24 @@
 
   // ---- boot --------------------------------------------------------------
 
+  // Staging-only demo: the screenshot and check route carries no platform
+  // token, so with ?demo=1 the pet beat renders from a fixed demo pet. It
+  // never calls the API; a real visitor without the flag is unaffected.
+  if (DEMO) {
+    state = {
+      pet: {
+        species: 'turtle', name: 'Demo', days: 3, food: 60, play: 45,
+        plays: 2, step: 'home', agreed: false, vote: null, ball: true,
+        happiness: 72,
+      },
+      staging: true, feedback: null, proposal: null,
+    };
+    show('home');
+  } else if (token) {
+
   // With no platform token (a direct visit to the app's own address) there is
   // no pet to ask for: the markup already shows the egg, so leave it there
   // rather than firing a request that can only come back 401.
-  if (token) {
     api('/api/state').then(function (v) {
       state = v;
       show(state.pet.step);

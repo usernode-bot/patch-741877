@@ -21,7 +21,7 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
 });
 process.env.USERNODE_JWT_PUBLIC_KEY = publicKey;
 
-const { app, speciesFor, SPECIES, EMOJI } = require('../server.js');
+const { app, speciesFor, SPECIES, EMOJI, applyHappiness } = require('../server.js');
 
 function tokenFor(id, username) {
   return jwt.sign(
@@ -130,6 +130,47 @@ test('pet stats show days from hatched_at and the hashed species', async () => {
   const pgViewShape = { species: v.pet.species, days: v.pet.days };
   assert.ok(SPECIES.includes(pgViewShape.species));
   assert.equal(pgViewShape.days, 0);
+});
+
+test('happiness gets its once-a-day visit bonus and never overfills', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const hatchDay = new Date(now.getTime() - 3600 * 1000);
+  // Hatch day: elapsed < 1 day, so no bonus and no decay.
+  assert.equal(applyHappiness({ happiness: 50, hatched_at: hatchDay }, now), 50);
+  // One full day later, the visit bonus lands: 50 - 15 + 20 = 55.
+  const nextDay = new Date(now.getTime() + 86400000);
+  assert.equal(applyHappiness({ happiness: 50, hatched_at: hatchDay, happiness_at: hatchDay }, nextDay), 55);
+  assert.equal(applyHappiness({ happiness: 95, hatched_at: hatchDay, happiness_at: hatchDay }, nextDay), 100);
+});
+
+test('happiness decays for every full day since the last visit', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
+  // 80 - 45 decay + 20 visit bonus = 55.
+  assert.equal(applyHappiness({ happiness: 80, hatched_at: threeDaysAgo, happiness_at: threeDaysAgo }, now), 55);
+  // 30 - 45 decay + 20 = 5.
+  assert.equal(applyHappiness({ happiness: 30, hatched_at: threeDaysAgo, happiness_at: threeDaysAgo }, now), 5);
+  // Far decayed: the bonus and the clamp both keep it out of the negatives.
+  const longAgo = new Date(now.getTime() - 10 * 86400000);
+  assert.equal(applyHappiness({ happiness: 40, hatched_at: longAgo, happiness_at: longAgo }, now), 0);
+});
+
+test('an unhatched egg keeps its happiness untouched', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const egg = { happiness: 20, hatched_at: null, happiness_at: new Date(now.getTime() - 5 * 86400000) };
+  assert.equal(applyHappiness(egg, now), 20);
+});
+
+test('the pet state carries happiness beside food and play', async () => {
+  const token = tokenFor('happy-tester', 'hana');
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.happiness, 50);
+  v = await (await call('POST', '/api/hatch', { token })).json();
+  assert.equal(typeof v.pet.happiness, 'number');
+  assert.ok(v.pet.happiness >= 0 && v.pet.happiness <= 100);
+  v = await (await call('POST', '/api/feed', { token })).json();
+  assert.equal(v.pet.food, 60, 'food still behaves as before');
+  assert.ok(v.pet.happiness >= 0 && v.pet.happiness <= 100);
 });
 
 test('POST /api/pet changes name and species after hatching', async () => {

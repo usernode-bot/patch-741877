@@ -6,6 +6,14 @@
   "tests": [
     { "name": "Egg renders", "path": "/", "expectSelector": "#egg" },
     { "name": "Onboarding shell has no console errors", "path": "/", "expectText": "An egg" },
-    { "name": "Change pet dialog renders in shell", "path": "/", "expectSelector": "#change-pet" }
+    { "name": "Change pet dialog renders in shell", "path": "/", "expectSelector": "#change-pet" },
+    {
+      "name": "Happiness meter sits beside the other meters",
+      "path": "/?demo=1",
+      "expectSelector": "#meter-happy",
+      "visual": true,
+      "id": "pet.happiness-meter",
+      "impact": ["public/index.html", "public/patch.js", "public/patch.css", "server.js"]
+    }
   ]
 }
