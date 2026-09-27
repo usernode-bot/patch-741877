@@ -74,6 +74,7 @@ function blankPet(userId, username) {
     trick_spin: false,
     tricks_celebrated_at: null,
     hatched_at: null,
+    birthday: null,
   };
 }
 
@@ -104,6 +105,7 @@ function pgStore() {
           trick_stay    BOOLEAN NOT NULL DEFAULT FALSE,
           trick_spin    BOOLEAN NOT NULL DEFAULT FALSE,
           tricks_celebrated_at TIMESTAMPTZ,
+          birthday DATE,
           chosen_species TEXT,
           hatched_at TIMESTAMPTZ,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -115,6 +117,7 @@ function pgStore() {
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_stay BOOLEAN NOT NULL DEFAULT FALSE`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_spin BOOLEAN NOT NULL DEFAULT FALSE`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS tricks_celebrated_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS birthday DATE`);
       await pool.query(`COMMENT ON TABLE pets IS 'staging:private'`);
     },
     async get(userId, username) {
@@ -137,12 +140,13 @@ function pgStore() {
                happiness_at = $7, plays = $8, step = $9, agreed = $10, vote = $11,
                ball = $12, chosen_species = $13, hatched_at = $14,
                trick_sit = $15, trick_stay = $16, trick_spin = $17,
-               tricks_celebrated_at = $18, updated_at = NOW()
+               tricks_celebrated_at = $18, birthday = $19, updated_at = NOW()
         WHERE user_id = $1 RETURNING *
       `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.happiness, pet.happiness_at === undefined ? null : pet.happiness_at,
           pet.plays, pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
           pet.hatched_at, !!pet.trick_sit, !!pet.trick_stay, !!pet.trick_spin,
-          pet.tricks_celebrated_at === undefined ? null : pet.tricks_celebrated_at]);
+          pet.tricks_celebrated_at === undefined ? null : pet.tricks_celebrated_at,
+          pet.birthday === undefined ? null : pet.birthday]);
       return rows[0];
     },
     async reset(userId) {
@@ -219,6 +223,8 @@ function view(pet) {
       tricks: TRICKS.map(function (trick) { return { trick: trick, done: !!pet['trick_' + trick] }; }),
       tricks_complete: TRICKS.every(function (trick) { return !!pet['trick_' + trick]; }),
       tricks_celebrated: !!pet.tricks_celebrated_at,
+      birthday: birthdayKey(pet.birthday),
+      birthday_today: birthdayToday(pet, new Date()),
     },
     username: pet.username,
     // Staging previews get a Start over link in the home footer, because a
@@ -261,6 +267,29 @@ function applyHappiness(pet, now) {
   pet.happiness = next;
   pet.happiness_at = now;
   return pet.happiness;
+}
+
+// The birthday is one plain YYYY-MM-DD string everywhere: the client saves
+// exactly that, Postgres hands a DATE column back as a JS Date at midnight
+// UTC, and the memory store keeps whatever /api/pet stored. Normalize once
+// here so the view, the badge check and the stats line all see the same shape.
+function birthdayKey(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+}
+
+// Is today the pet's birthday? Computed server-side on the same UTC clock
+// every other daily rule (happiness decay, visit bonus) uses, so every
+// device agrees on the day. An egg has no birthday to celebrate yet.
+function birthdayToday(pet, now) {
+  const stored = birthdayKey(pet.birthday);
+  if (!stored || !pet.hatched_at) return false;
+  const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat)
+    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(now)
+    : now.toISOString().slice(0, 10);
+  return tz === stored;
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +471,16 @@ app.post('/api/pet', handler((pet, req, res) => {
     const name = body.name.trim().slice(0, 24);
     pet.name = name ? name : null;
   }
+  if (body.birthday !== undefined) {
+    if (body.birthday === null || body.birthday === '') {
+      pet.birthday = null;
+    } else if (typeof body.birthday === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.birthday) && !isNaN(new Date(body.birthday + 'T00:00:00Z').getTime())) {
+      pet.birthday = body.birthday;
+    } else {
+      res.status(400).json({ error: 'birthday must be YYYY-MM-DD' });
+      return false;
+    }
+  }
 }));
 
 app.post('/api/ship', handler((pet) => {
@@ -550,5 +589,5 @@ if (require.main === module) {
 
 module.exports = {
   app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view,
-  FEEDBACK, PROPOSAL, applyHappiness, TRICKS,
+  FEEDBACK, PROPOSAL, applyHappiness, TRICKS, birthdayToday, birthdayKey,
 };

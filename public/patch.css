@@ -190,6 +190,22 @@ body.home .skip { display: none; }
   white-space: nowrap;
 }
 
+/* The birthday badge hangs off the pet's top-left, the speech bubble's
+   mirror image, built from the same card ingredients: the cream fill, the
+   ink border and radius. */
+.birthday-badge {
+  position: absolute;
+  top: 10px;
+  left: calc(50% - 108px);
+  z-index: 4;
+  background: var(--card);
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-size: 20px;
+  line-height: 1;
+}
+
 .ball-slot {
   position: absolute;
   bottom: 34px;

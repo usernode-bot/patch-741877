@@ -46,6 +46,19 @@
         "public/patch.css",
         "server.js"
       ]
+    },
+    {
+      "name": "Birthday badge shows on the pet screen",
+      "path": "/?demo=1",
+      "expectSelector": "#birthday-badge",
+      "visual": true,
+      "id": "pet.birthday-badge",
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
     }
   ]
 }
