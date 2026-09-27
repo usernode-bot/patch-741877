@@ -133,6 +133,22 @@
       </div>
     </div>
     <p class="pet-stats small" id="pet-stats" hidden></p>
+    <section class="tricks" id="trick-panel" aria-labelledby="trick-heading">
+      <h2 class="trick-heading" id="trick-heading">Trick training</h2>
+      <p class="small" id="trick-hint">Teach one trick at a time.</p>
+      <ul class="trick-list" id="trick-list">
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="trick-sit" data-trick="sit" aria-pressed="false">Sit</button>
+        </li>
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="trick-stay" data-trick="stay" aria-pressed="false">Stay</button>
+        </li>
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="trick-spin" data-trick="spin" aria-pressed="false">Spin</button>
+        </li>
+      </ul>
+      <p class="small" id="trick-done-note" hidden>That's the full set.</p>
+    </section>
     <div class="actions">
       <button type="button" class="btn primary" id="btn-feed">Feed 🍎</button>
       <button type="button" class="btn" id="btn-play">Play</button>
@@ -239,6 +255,14 @@
   </section>
 
 </main>
+
+<div id="celebrate" hidden>
+  <div class="celebrate-card" role="status">
+    <div class="celebrate-sticker sticker" id="celebrate-sticker" aria-hidden="true"></div>
+    <p class="celebrate-line" id="celebrate-line"></p>
+  </div>
+  <div class="fx" id="celebrate-fx"></div>
+</div>
 
 <dialog id="about">
   <h2>About Patch</h2>

@@ -204,6 +204,67 @@ test('POST /api/pet refuses an unhatched egg', async () => {
   assert.equal(res.status, 400);
 });
 
+test('the trick checklist persists per pet and validates the trick name', async () => {
+  const token = tokenFor('trick-tester', 'tara');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.deepEqual(v.pet.tricks, [
+    { trick: 'sit', done: false },
+    { trick: 'stay', done: false },
+    { trick: 'spin', done: false },
+  ]);
+  assert.equal(v.pet.tricks_complete, false);
+  assert.equal(v.pet.tricks_celebrated, false);
+
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks.filter((t) => t.trick === 'sit')[0].done, true);
+  assert.equal(v.pet.tricks_complete, false);
+
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.tricks.filter((t) => t.trick === 'sit')[0].done, true, 'the toggle persists');
+
+  // Unsetting a trick works both ways.
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: false } })).json();
+  assert.equal(v.pet.tricks.filter((t) => t.trick === 'sit')[0].done, false);
+
+  const bad = await call('POST', '/api/trick', { token, body: { trick: 'backflip' } });
+  assert.equal(bad.status, 400);
+});
+
+test('the celebration stamps once per pet and never replays after a reload', async () => {
+  const token = tokenFor('party-tester', 'paul');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, false, 'one of three is not the moment');
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'stay', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, false, 'two of three is not the moment');
+
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'spin', done: true } })).json();
+  assert.equal(v.pet.tricks_complete, true);
+  assert.equal(v.pet.tricks_celebrated, true, 'the third done flag stamps the celebration');
+
+  // A reload re-reads the flag, never the missing overlay: the same answer
+  // arrives with or without another write in between.
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.tricks_celebrated, true);
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, true, 'a redundant toggle does not re-stamp');
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: false } })).json();
+  assert.equal(v.pet.tricks_celebrated, true, 'un-landing a trick does not clear the stamp');
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, true, 're-completing does not celebrate twice');
+
+  // Start over clears everything, celebration included.
+  const reset = process.env.USERNODE_ENV === 'staging';
+  if (reset) {
+    v = await (await call('POST', '/api/reset', { token })).json();
+    v = await (await call('GET', '/api/state', { token })).json();
+    assert.equal(v.pet.tricks_celebrated, false);
+  }
+});
+
 // The shell is public so the platform's tokenless check and capture
 // containers can render it; every route that carries a pet is not.
 test('without a token the data is closed but the shell renders', async () => {

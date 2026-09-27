@@ -1,19 +1,51 @@
 {
   "name": "Patch",
   "description": "The Homeroom class pet. Hatch it, feed it, play with it, then help decide what it does next.",
-  "icon": { "emoji": "🐣" },
+  "icon": {
+    "emoji": "\ud83d\udc23"
+  },
   "secrets": [],
   "tests": [
-    { "name": "Egg renders", "path": "/", "expectSelector": "#egg" },
-    { "name": "Onboarding shell has no console errors", "path": "/", "expectText": "An egg" },
-    { "name": "Change pet dialog renders in shell", "path": "/", "expectSelector": "#change-pet" },
+    {
+      "name": "Egg renders",
+      "path": "/",
+      "expectSelector": "#egg"
+    },
+    {
+      "name": "Onboarding shell has no console errors",
+      "path": "/",
+      "expectText": "An egg"
+    },
+    {
+      "name": "Change pet dialog renders in shell",
+      "path": "/",
+      "expectSelector": "#change-pet"
+    },
     {
       "name": "Happiness meter sits beside the other meters",
       "path": "/?demo=1",
       "expectSelector": "#meter-happy",
       "visual": true,
       "id": "pet.happiness-meter",
-      "impact": ["public/index.html", "public/patch.js", "public/patch.css", "server.js"]
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
+    },
+    {
+      "name": "Trick checklist renders on the pet screen",
+      "path": "/?demo=1",
+      "expectSelector": "#trick-panel .trick-check[data-trick='sit']",
+      "visual": true,
+      "id": "pet.trick-checklist",
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
     }
   ]
 }
