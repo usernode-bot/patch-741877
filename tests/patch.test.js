@@ -204,6 +204,56 @@ test('POST /api/pet refuses an unhatched egg', async () => {
   assert.equal(res.status, 400);
 });
 
+test('the birthday is set, shown, cleared and persisted per pet', async () => {
+  const token = tokenFor('birthday-tester', 'bree');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.birthday, null, 'a fresh pet has no birthday');
+  assert.equal(v.pet.birthday_today, false);
+
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: '2020-02-29' } })).json();
+  assert.equal(v.pet.birthday, '2020-02-29');
+
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.birthday, '2020-02-29', 'the birthday persists across a fresh read');
+
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: '' } })).json();
+  assert.equal(v.pet.birthday, null, 'an empty string clears the birthday');
+
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: null } })).json();
+  assert.equal(v.pet.birthday, null);
+
+  const bad = await call('POST', '/api/pet', { token, body: { birthday: 'Feb 29' } });
+  assert.equal(bad.status, 400);
+
+  const bad2 = await call('POST', '/api/pet', { token, body: { birthday: '2020-13-01' } });
+  assert.equal(bad2.status, 400);
+});
+
+test('birthday_today is true only on the day, server-computed', async () => {
+  const token = tokenFor('birthdayday-tester', 'dana');
+  await call('POST', '/api/hatch', { token });
+
+  // A birthday stored for a date that is not today is never "today".
+  let v = await (await call('POST', '/api/pet', { token, body: { birthday: '2001-01-01' } })).json();
+  assert.equal(v.pet.birthday_today, false);
+
+  // Today's own date (UTC, the same clock the server stamps happiness with)
+  // lights the flag without any client involvement.
+  const today = new Date().toISOString().slice(0, 10);
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: today } })).json();
+  assert.equal(v.pet.birthday, today);
+  assert.equal(v.pet.birthday_today, true);
+});
+
+test('POST /api/pet still refuses an unhatched egg with a birthday', async () => {
+  const token = tokenFor('eggbday-tester', 'elif');
+  await (await call('GET', '/api/state', { token })).json();
+  const res = await call('POST', '/api/pet', { token, body: { birthday: '2020-02-29' } });
+  assert.equal(res.status, 400);
+});
+
 test('the trick checklist persists per pet and validates the trick name', async () => {
   const token = tokenFor('trick-tester', 'tara');
   await call('POST', '/api/hatch', { token });

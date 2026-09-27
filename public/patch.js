@@ -31,6 +31,7 @@
   var feedIndex = 0;
   var tryMode = 'after';
   var busy = false;
+  var birthdayToasted = false;
 
   function $(id) { return document.getElementById(id); }
   function src(key) { return '/emoji/' + EMOJI[key].cp + '.json'; }
@@ -227,8 +228,13 @@
 
   function petStatsText() {
     var e = EMOJI[state.pet.species];
-    return e.char + ' ' + capitalize(state.pet.species) + ' · ' +
+    var text = e.char + ' ' + capitalize(state.pet.species) + ' · ' +
       state.pet.days + (state.pet.days === 1 ? ' day' : ' days') + ' with you';
+    if (state.pet.birthday) {
+      var parts = state.pet.birthday.split('-');
+      text += ' · born ' + parts[1] + '/' + parts[2];
+    }
+    return text;
   }
 
   function renderPet(isHome) {
@@ -242,7 +248,21 @@
     $('bridge').hidden = isHome || state.pet.plays < 2;
     $('home-foot').hidden = !isHome;
     $('btn-reset').hidden = !state.staging;
+    renderBirthday();
     renderTricks();
+  }
+
+  // The birthday badge is server-computed (birthday_today), so every device
+  // agrees on the day. The toast fires once per session: a reload can replay
+  // it, which is what a birthday is, but a re-render in the same visit can't.
+  function renderBirthday() {
+    var badge = $('birthday-badge');
+    var today = !!state.pet.birthday_today;
+    badge.hidden = !today;
+    if (today && !birthdayToasted) {
+      birthdayToasted = true;
+      say($('pet-speech'), '🎉 Birthday today!');
+    }
   }
 
   // The trick checklist, a small card under the meters on the home beat.
@@ -358,6 +378,7 @@
 
   function openChangePet() {
     $('pet-name').value = state.pet.name || '';
+    $('pet-birthday').value = state.pet.birthday || '';
     setPickedSpecies(state.pet.species);
     $('change-pet').showModal();
   }
@@ -375,12 +396,15 @@
   }
 
   function savePet() {
-    return api('/api/pet', { name: $('pet-name').value, species: pickedSpecies })
-      .then(function (v) {
-        state = v;
-        $('change-pet').close();
-        renderPet(current === 'home');
-      });
+    return api('/api/pet', {
+      name: $('pet-name').value,
+      species: pickedSpecies,
+      birthday: $('pet-birthday').value || '',
+    }).then(function (v) {
+      state = v;
+      $('change-pet').close();
+      renderPet(current === 'home');
+    });
   }
 
   function renderProposal() {
@@ -646,6 +670,8 @@
         tricks: [{ trick: 'sit', done: false }, { trick: 'stay', done: false }, { trick: 'spin', done: false }],
         tricks_complete: false,
         tricks_celebrated: false,
+        birthday: new Date().toISOString().slice(0, 10),
+        birthday_today: true,
       },
       staging: true, feedback: null, proposal: null,
     };
