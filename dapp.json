@@ -1,9 +1,7 @@
 {
   "name": "Patch",
   "description": "The Homeroom class pet. Hatch it, feed it, play with it, then help decide what it does next.",
-  "icon": {
-    "emoji": "\ud83d\udc23"
-  },
+  "icon": { "image": "brand/icon.png", "emoji": "🐣" },
   "secrets": [],
   "tests": [
     {
