@@ -89,7 +89,8 @@
   <section class="beat" data-beat="egg">
     <h1>An egg. It's yours.</h1>
     <p class="hint" id="egg-hint">Tap to hatch.</p>
-    <div class="stage" id="egg-stage">
+    <div class="stage scene" id="egg-stage">
+      <div class="scenery" aria-hidden="true"><span class="cloud c1"></span><span class="cloud c2"></span><span class="scene-hill"></span></div>
       <button id="egg" type="button" class="egg" aria-label="Tap to hatch the egg">
         <svg viewBox="0 0 120 140" width="120" height="140" aria-hidden="true">
           <path class="shell" d="M60 6 C90 6 112 52 112 86 C112 116 88 134 60 134 C32 134 8 116 8 86 C8 52 30 6 60 6 Z"
@@ -112,25 +113,45 @@
   <section class="beat" data-beat="pet" hidden>
     <h1 id="pet-title">Meet your Homeroom pet.</h1>
     <p class="line" id="pet-line"></p>
-    <div class="stage">
-      <div class="pet-box sticker lottie pet" id="pet-sticker"></div>
+    <div class="stage scene">
+      <div class="scenery" aria-hidden="true"><span class="cloud c1"></span><span class="cloud c2"></span><span class="scene-hill"></span></div>
+      <div class="pet-shadow" aria-hidden="true"></div>
+      <div class="pet-idle"><div class="pet-box sticker lottie pet" id="pet-sticker"></div></div>
       <div class="ball-slot" id="pet-ball" hidden></div>
       <div class="speech" id="pet-speech" hidden></div>
       <div class="fx" id="pet-fx"></div>
     </div>
     <div class="meters">
       <div class="meter-row">
-        <span class="meter-label">Food</span>
-        <div class="meter"><span class="fill food" id="meter-food"></span></div>
+        <span class="meter-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22">
+            <path d="M12 7 C9 4.5 4 5.5 4 11 C4 16 7.5 20.5 10 20.5 C11 20.5 11.3 20 12 20 C12.7 20 13 20.5 14 20.5 C16.5 20.5 20 16 20 11 C20 5.5 15 4.5 12 7 Z"
+                  fill="#ff9a6e" stroke="#121a0e" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M12 7 C12 5 13 3.5 15 3" fill="none" stroke="#121a0e" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M8 10 C7.5 11 7.3 12 7.4 13" fill="none" stroke="#fffeea" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <div class="meter-body">
+          <span class="meter-label" id="label-food">Food</span>
+          <div class="meter" role="progressbar" aria-label="Food" aria-valuemin="0" aria-valuemax="100" id="bar-food"><span class="fill food" id="meter-food"></span></div>
+        </div>
       </div>
       <div class="meter-row">
-        <span class="meter-label">Play</span>
-        <div class="meter"><span class="fill play" id="meter-play"></span></div>
+        <span class="meter-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22">
+            <path d="M12 2.8 L14.7 8.6 L21 9.3 L16.3 13.6 L17.6 19.9 L12 16.7 L6.4 19.9 L7.7 13.6 L3 9.3 L9.3 8.6 Z"
+                  fill="#ffee6f" stroke="#121a0e" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <div class="meter-body">
+          <span class="meter-label" id="label-play">Play</span>
+          <div class="meter" role="progressbar" aria-label="Play" aria-valuemin="0" aria-valuemax="100" id="bar-play"><span class="fill play" id="meter-play"></span></div>
+        </div>
       </div>
     </div>
     <div class="actions">
-      <button type="button" class="btn primary" id="btn-feed">Feed 🍎</button>
-      <button type="button" class="btn" id="btn-play">Play</button>
+      <button type="button" class="btn game primary" id="btn-feed">Feed 🍎</button>
+      <button type="button" class="btn game" id="btn-play">Play</button>
     </div>
     <p class="bridge" id="bridge" hidden>
       Feels like something's missing? Someone said so too.
@@ -176,8 +197,10 @@
   <section class="beat" data-beat="try" hidden>
     <h1>This is Patch with the change.</h1>
     <p class="hint">Play again.</p>
-    <div class="stage">
-      <div class="pet-box sticker lottie pet" id="try-sticker"></div>
+    <div class="stage scene">
+      <div class="scenery" aria-hidden="true"><span class="cloud c1"></span><span class="cloud c2"></span><span class="scene-hill"></span></div>
+      <div class="pet-shadow" aria-hidden="true"></div>
+      <div class="pet-idle"><div class="pet-box sticker lottie pet" id="try-sticker"></div></div>
       <div class="ball-slot" id="try-ball" hidden></div>
       <div class="speech" id="try-speech" hidden></div>
       <div class="fx" id="try-fx"></div>
@@ -219,8 +242,10 @@
   <!-- Beat 7 — shipped -->
   <section class="beat" data-beat="shipped" hidden>
     <h1>It's in.</h1>
-    <div class="stage">
-      <div class="pet-box sticker lottie pet" id="ship-sticker"></div>
+    <div class="stage scene">
+      <div class="scenery" aria-hidden="true"><span class="cloud c1"></span><span class="cloud c2"></span><span class="scene-hill"></span></div>
+      <div class="pet-shadow" aria-hidden="true"></div>
+      <div class="pet-idle"><div class="pet-box sticker lottie pet" id="ship-sticker"></div></div>
       <div class="ball-slot on" id="ship-ball"></div>
       <div class="fx" id="ship-fx"></div>
     </div>

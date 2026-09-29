@@ -52,7 +52,25 @@ build never reaches the network.
 The sticker rule: a pet at rest is a static clone of frame 0 carrying the
 halo through an SVG filter the browser rasterises once; the live Lottie SVG
 on top never gets a filter. A CSS drop-shadow stack on the live SVG measured
-8 fps, the clone measures 60. Idle pets do not animate at all.
+8 fps, the clone measures 60. An idle pet's Lottie stays parked on frame 0;
+the only idle motion is a slow breathing bob on the `.pet-idle` wrapper (a
+compositor transform, never a filter), paused while the pet is doing
+something and switched off under reduced motion.
+
+## The look
+
+Every stage is a framed scene: a sky, two drifting clouds and a hill, with
+the pet standing on it. Meters are chunky notched bars with an apple (Food)
+and a star (Play) badge; buttons are raised game buttons that sink when
+pressed. The game type is a rounded system font stack (`--font-game` in
+`public/patch.css`); no font file is vendored.
+
+## Demo preview
+
+`/?demo=pet` shows a fixed pet screen (a turtle, Food 60, Play 40, the
+"See what they said" note showing) with no token, no requests and nothing
+stored. Feed and Play animate and move the meters locally; the note's link
+does nothing there. The `pet.home` visual check in `dapp.json` uses it.
 
 ## Scripts
 
