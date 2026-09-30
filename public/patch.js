@@ -4,6 +4,10 @@
 
   var EMOJI = window.PATCH_EMOJI.EMOJI;
   var params = new URLSearchParams(window.location.search);
+  // Staging-only demo: the screenshot/check route has no platform token, so
+  // with ?demo=1 the pet beat renders from a fixed demo pet. It never calls
+  // the API and production ignores the flag entirely.
+  var DEMO = params.get('demo') === '1';
   // The platform injects ?token= on the iframe's first load. Remember it so a
   // reload without one (an offline open, a replayed navigation) still knows
   // whose pet this is; storage can be refused in a cross-origin frame, which
@@ -15,6 +19,8 @@
   } catch (e) {}
   var authHeaders = token ? { 'x-usernode-token': token } : {};
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var SPECIES_KEYS = Object.keys(EMOJI).filter(function (k) { return EMOJI[k].species; });
+  var pickedSpecies = null;
 
   var anims = new Map();   // element -> looping animation, parked on frame 0
   var fxAnims = new Map(); // box id -> the one-shot currently playing in it
@@ -28,6 +34,7 @@
   // ?demo=pet: a fixed, local pet screen for reviewers and the checks. No
   // token, no requests, nothing stored.
   var isDemo = params.get('demo') === 'pet';
+  var birthdayToasted = false;
 
   function $(id) { return document.getElementById(id); }
   function src(key) { return '/emoji/' + EMOJI[key].cp + '.json'; }
@@ -218,16 +225,122 @@
     return line;
   }
 
+  function capitalize(key) {
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+
+  function petStatsText() {
+    var e = EMOJI[state.pet.species];
+    var text = e.char + ' ' + capitalize(state.pet.species) + ' · ' +
+      state.pet.days + (state.pet.days === 1 ? ' day' : ' days') + ' with you';
+    if (state.pet.birthday) {
+      var parts = state.pet.birthday.split('-');
+      text += ' · born ' + parts[1] + '/' + parts[2];
+    }
+    return text;
+  }
+
   function renderPet(isHome) {
     $('pet-title').textContent = isHome ? (state.pet.name || 'Your pet') : 'Meet your Homeroom pet.';
     $('pet-line').textContent = speciesLine();
+    $('pet-stats').hidden = !isHome;
+    $('pet-stats').textContent = petStatsText();
     $('meter-food').style.width = state.pet.food + '%';
     $('meter-play').style.width = state.pet.play + '%';
     $('bar-food').setAttribute('aria-valuenow', String(state.pet.food));
     $('bar-play').setAttribute('aria-valuenow', String(state.pet.play));
+    $('meter-happy').style.width = state.pet.happiness + '%';
     $('bridge').hidden = isHome || state.pet.plays < 2;
     $('home-foot').hidden = !isHome;
     $('btn-reset').hidden = !state.staging;
+    renderBirthday();
+    renderTricks();
+  }
+
+  // The birthday badge is server-computed (birthday_today), so every device
+  // agrees on the day. The toast fires once per session: a reload can replay
+  // it, which is what a birthday is, but a re-render in the same visit can't.
+  function renderBirthday() {
+    var badge = $('birthday-badge');
+    var today = !!state.pet.birthday_today;
+    badge.hidden = !today;
+    if (today && !birthdayToasted) {
+      birthdayToasted = true;
+      say($('pet-speech'), '🎉 Birthday today!');
+    }
+  }
+
+  // The trick checklist, a small card under the meters on the home beat.
+  // Each toggle is persisted by /api/trick; the server answer wins, so a
+  // failed toggle rolls the row back.
+  function renderTricks() {
+    var pet = state.pet;
+    var list = pet.tricks || [];
+    var done = list.filter(function (t) { return t.done; }).length;
+    var panel = $('trick-panel');
+    panel.hidden = current !== 'home';
+    $('trick-hint').textContent = done < 3 ? 'Teach one trick at a time.' : 'That is the full set.';
+    $('trick-done-note').hidden = done < 3;
+    $('trick-done-note').textContent = done < 3 ? done + ' of 3 so far.' : 'That is the full set.';
+    list.forEach(function (t) {
+      var btn = document.querySelector('.trick-check[data-trick="' + t.trick + '"]');
+      if (!btn) return;
+      btn.classList.toggle('on', !!t.done);
+      btn.setAttribute('aria-pressed', String(!!t.done));
+      btn.disabled = false;
+    });
+  }
+
+  function toggleTrick(t) {
+    if (DEMO) {
+      t.done = !t.done;
+      state.pet.tricks_complete = state.pet.tricks.every(function (x) { return x.done; });
+      if (state.pet.tricks_complete && !state.pet.tricks_celebrated) {
+        state.pet.tricks_celebrated = true;
+        renderTricks();
+        celebrate();
+      } else {
+        renderTricks();
+      }
+      return Promise.resolve();
+    }
+    return api('/api/trick', { trick: t.trick, done: !t.done }).then(function (v) {
+      state = v;
+      var allThree = state.pet.tricks && state.pet.tricks.length === 3 &&
+        state.pet.tricks.every(function (t) { return t.done; });
+      if (current === 'home') {
+        renderTricks();
+        wake($('pet-sticker'), 1);
+        if (allThree && !state.pet.tricks_celebrated) celebrate();
+      }
+    });
+  }
+
+  // ---- celebration -------------------------------------------------------
+  // One moment per pet. /api/trick stamps tricks_celebrated_at server-side on
+  // the run that completes the set, so a reload (or a re-render) never replays
+  // it until Start over clears the row.
+
+  var celebrating = false;
+
+  function celebrate() {
+    if (celebrating || reduce) return;
+    celebrating = true;
+    var overlay = $('celebrate');
+    var stickerEl = $('celebrate-sticker');
+    stickerEl.innerHTML = '';
+    var a = window.lottie.loadAnimation({
+      container: stickerEl, renderer: 'svg', loop: false, autoplay: true, path: src(state.pet.species),
+    });
+    $('celebrate-line').textContent = (state.pet.name || 'Your pet') + ' knows sit, stay and spin.';
+    burst($('celebrate-fx'), 'party');
+    overlay.hidden = false;
+    setTimeout(function () {
+      overlay.hidden = true;
+      stickerEl.innerHTML = '';
+      try { a.destroy(); } catch (e) {}
+      celebrating = false;
+    }, 3200);
   }
 
   function renderFeedback() {
@@ -238,6 +351,65 @@
     var btn = $('btn-agree');
     btn.textContent = state.pet.agreed ? '👍 Agreed' : '👍 Agree';
     btn.disabled = !!state.pet.agreed;
+  }
+
+  // ---- change pet --------------------------------------------------------
+
+  function buildSpeciesPicker() {
+    var group = $('species-picker');
+    group.innerHTML = '';
+    SPECIES_KEYS.forEach(function (key) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'seg';
+      b.dataset.species = key;
+      b.textContent = EMOJI[key].char + ' ' + capitalize(key);
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        setPickedSpecies(b.dataset.species);
+      });
+      group.appendChild(b);
+    });
+  }
+
+  function setPickedSpecies(key) {
+    pickedSpecies = key;
+    Array.prototype.forEach.call($('species-picker').children, function (b) {
+      var on = b.dataset.species === pickedSpecies;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function openChangePet() {
+    $('pet-name').value = state.pet.name || '';
+    $('pet-birthday').value = state.pet.birthday || '';
+    setPickedSpecies(state.pet.species);
+    $('change-pet').showModal();
+  }
+
+  // A species swap must not reuse the cached Lottie animation or the static
+  // halo clone drawn from the old animal; clear both and let the next render
+  // build the sticker fresh.
+  function forgetStickers() {
+    ['pet-sticker', 'try-sticker', 'ship-sticker'].forEach(function (id) {
+      var el = $(id);
+      var a = anims.get(el);
+      if (a) { try { a.destroy(); } catch (e) {} anims.delete(el); }
+      Array.prototype.forEach.call(el.querySelectorAll('svg.halo'), function (n) { n.remove(); });
+    });
+  }
+
+  function savePet() {
+    return api('/api/pet', {
+      name: $('pet-name').value,
+      species: pickedSpecies,
+      birthday: $('pet-birthday').value || '',
+    }).then(function (v) {
+      state = v;
+      $('change-pet').close();
+      renderPet(current === 'home');
+    });
   }
 
   function renderProposal() {
@@ -270,7 +442,7 @@
       preload(['hatch', 'sparkles', state.pet.species]);
     } else if (beat === 'pet') {
       renderPet(step === 'home');
-      sticker($('pet-sticker'), state.pet.species);
+      if (!anims.has($('pet-sticker'))) sticker($('pet-sticker'), state.pet.species);
       preload(['apple'].concat(state.pet.ball ? ['ball', 'hearts'] : []));
       if (opts.justHatched) {
         burst($('pet-fx'), 'sparkles');
@@ -401,10 +573,26 @@
 
   $('btn-about').addEventListener('click', function () { $('about').showModal(); });
   $('about-close').addEventListener('click', function () { $('about').close(); });
+  $('btn-change-pet').addEventListener('click', function () { openChangePet(); });
+  $('pet-cancel').addEventListener('click', function () { $('change-pet').close(); });
+  $('pet-save').addEventListener('click', guard(savePet));
+
+  buildSpeciesPicker();
 
   $('btn-reset').addEventListener('click', guard(function () {
     return api('/api/reset', {}).then(function () { window.location.reload(); });
   }));
+
+  // ---- trick checklist ---------------------------------------------------
+
+  Array.prototype.forEach.call(document.querySelectorAll('.trick-check'), function (btn) {
+    btn.addEventListener('click', guard(function () {
+      var row = (state.pet.tricks || []).filter(function (t) { return t.trick === btn.dataset.trick; })[0];
+      if (!row) return;
+      btn.disabled = true;
+      return toggleTrick(row);
+    }));
+  });
 
   // ---- beat 3, feedback --------------------------------------------------
 
@@ -487,10 +675,25 @@
 
   // ---- boot --------------------------------------------------------------
 
-  // With no platform token (a direct visit to the app's own address) there is
-  // no pet to ask for: the markup already shows the egg, so leave it there
-  // rather than firing a request that can only come back 401.
-  if (isDemo) {
+  // Staging-only demo: the screenshot and check route carries no platform
+  // token, so with ?demo=1 the pet beat renders from a fixed demo pet. It
+  // never calls the API; a real visitor without the flag is unaffected.
+  if (DEMO) {
+    state = {
+      pet: {
+        species: 'turtle', name: 'Demo', days: 3, food: 60, play: 45,
+        plays: 2, step: 'home', agreed: false, vote: null, ball: true,
+        happiness: 72,
+        tricks: [{ trick: 'sit', done: false }, { trick: 'stay', done: false }, { trick: 'spin', done: false }],
+        tricks_complete: false,
+        tricks_celebrated: false,
+        birthday: new Date().toISOString().slice(0, 10),
+        birthday_today: true,
+      },
+      staging: true, feedback: null, proposal: null,
+    };
+    show('home');
+  } else if (isDemo) {
     state = {
       pet: {
         species: 'turtle', name: null, food: 60, play: 40, plays: 2,
@@ -512,4 +715,7 @@
       if (String(err.message).indexOf(' 401') === -1) console.error(err);
     });
   }
+  // With no platform token and no demo flag (a direct visit to the app's own
+  // address) there is no pet to ask for: the markup already shows the egg, so
+  // leave it there rather than firing a request that can only come back 401.
 })();

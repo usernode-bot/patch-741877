@@ -117,6 +117,7 @@
       <div class="scenery" aria-hidden="true"><span class="cloud c1"></span><span class="cloud c2"></span><span class="scene-hill"></span></div>
       <div class="pet-shadow" aria-hidden="true"></div>
       <div class="pet-idle"><div class="pet-box sticker lottie pet" id="pet-sticker"></div></div>
+      <div class="birthday-badge" id="birthday-badge" role="img" aria-label="Birthday today" hidden>&#127874;</div>
       <div class="ball-slot" id="pet-ball" hidden></div>
       <div class="speech" id="pet-speech" hidden></div>
       <div class="fx" id="pet-fx"></div>
@@ -148,7 +149,28 @@
           <div class="meter" role="progressbar" aria-label="Play" aria-valuemin="0" aria-valuemax="100" id="bar-play"><span class="fill play" id="meter-play"></span></div>
         </div>
       </div>
+      <div class="meter-row">
+        <span class="meter-label">Happy</span>
+        <div class="meter"><span class="fill happy" id="meter-happy"></span></div>
+      </div>
     </div>
+    <p class="pet-stats small" id="pet-stats" hidden></p>
+    <section class="tricks" id="trick-panel" aria-labelledby="trick-heading">
+      <h2 class="trick-heading" id="trick-heading">Trick training</h2>
+      <p class="small" id="trick-hint">Teach one trick at a time.</p>
+      <ul class="trick-list" id="trick-list">
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="trick-sit" data-trick="sit" aria-pressed="false">Sit</button>
+        </li>
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="trick-stay" data-trick="stay" aria-pressed="false">Stay</button>
+        </li>
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="trick-spin" data-trick="spin" aria-pressed="false">Spin</button>
+        </li>
+      </ul>
+      <p class="small" id="trick-done-note" hidden>That's the full set.</p>
+    </section>
     <div class="actions">
       <button type="button" class="btn game primary" id="btn-feed">Feed 🍎</button>
       <button type="button" class="btn game" id="btn-play">Play</button>
@@ -158,6 +180,7 @@
       <a href="#" id="bridge-link">See what they said →</a>
     </p>
     <footer class="foot" id="home-foot" hidden>
+      <button type="button" class="link" id="btn-change-pet">Change pet</button>
       <button type="button" class="link" id="btn-about">About Patch</button>
       <button type="button" class="link" id="btn-reset" hidden>Start over</button>
     </footer>
@@ -259,12 +282,40 @@
 
 </main>
 
+<div id="celebrate" hidden>
+  <div class="celebrate-card" role="status">
+    <div class="celebrate-sticker sticker" id="celebrate-sticker" aria-hidden="true"></div>
+    <p class="celebrate-line" id="celebrate-line"></p>
+  </div>
+  <div class="fx" id="celebrate-fx"></div>
+</div>
+
 <dialog id="about">
   <h2>About Patch</h2>
   <p>A tiny app built on Homeroom. Hatch a pet, feed it, play with it, and help decide what it does next.</p>
   <p class="small">Animated emoji by Google, CC BY 4.0, from the Noto Animated Emoji set.</p>
   <div class="actions">
     <button type="button" class="btn" id="about-close">Close</button>
+  </div>
+</dialog>
+
+<dialog id="change-pet">
+  <h2>Change pet</h2>
+  <div class="field">
+    <label for="pet-name">Name</label>
+    <input id="pet-name" type="text" maxlength="24" placeholder="your pet's name" autocomplete="off">
+  </div>
+  <div class="field">
+    <label for="pet-birthday">Birthday (optional)</label>
+    <input id="pet-birthday" type="date">
+  </div>
+  <div class="field">
+    <label>Type</label>
+    <div class="segmented" role="group" aria-label="Pet type" id="species-picker"></div>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn primary" id="pet-save">Save</button>
+    <button type="button" class="btn" id="pet-cancel">Cancel</button>
   </div>
 </dialog>
 

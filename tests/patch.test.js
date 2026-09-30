@@ -21,7 +21,7 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
 });
 process.env.USERNODE_JWT_PUBLIC_KEY = publicKey;
 
-const { app, speciesFor, SPECIES, EMOJI } = require('../server.js');
+const { app, speciesFor, SPECIES, EMOJI, applyHappiness } = require('../server.js');
 
 function tokenFor(id, username) {
   return jwt.sign(
@@ -84,6 +84,8 @@ test('the loop: hatch, feed, play, agree, vote, ship', async () => {
 
   v = await (await call('POST', '/api/hatch', { token })).json();
   assert.equal(v.pet.step, 'pet');
+  assert.equal(typeof v.pet.days, 'number');
+  assert.ok(v.pet.days >= 0, 'days should be 0 or more once hatched');
 
   await call('POST', '/api/play', { token });
   v = await (await call('POST', '/api/play', { token })).json();
@@ -117,6 +119,200 @@ test('the loop: hatch, feed, play, agree, vote, ship', async () => {
 
   v = await (await call('POST', '/api/play', { token })).json();
   assert.equal(v.pet.play, 65);
+});
+
+test('pet stats show days from hatched_at and the hashed species', async () => {
+  const token = tokenFor('stats-tester', 'stella');
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.days, 0, 'an egg has no days yet');
+  v = await (await call('POST', '/api/hatch', { token })).json();
+  assert.equal(v.pet.days, 0, 'hatch day is day 0');
+  const pgViewShape = { species: v.pet.species, days: v.pet.days };
+  assert.ok(SPECIES.includes(pgViewShape.species));
+  assert.equal(pgViewShape.days, 0);
+});
+
+test('happiness gets its once-a-day visit bonus and never overfills', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const hatchDay = new Date(now.getTime() - 3600 * 1000);
+  // Hatch day: elapsed < 1 day, so no bonus and no decay.
+  assert.equal(applyHappiness({ happiness: 50, hatched_at: hatchDay }, now), 50);
+  // One full day later, the visit bonus lands: 50 - 15 + 20 = 55.
+  const nextDay = new Date(now.getTime() + 86400000);
+  assert.equal(applyHappiness({ happiness: 50, hatched_at: hatchDay, happiness_at: hatchDay }, nextDay), 55);
+  assert.equal(applyHappiness({ happiness: 95, hatched_at: hatchDay, happiness_at: hatchDay }, nextDay), 100);
+});
+
+test('happiness decays for every full day since the last visit', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
+  // 80 - 45 decay + 20 visit bonus = 55.
+  assert.equal(applyHappiness({ happiness: 80, hatched_at: threeDaysAgo, happiness_at: threeDaysAgo }, now), 55);
+  // 30 - 45 decay + 20 = 5.
+  assert.equal(applyHappiness({ happiness: 30, hatched_at: threeDaysAgo, happiness_at: threeDaysAgo }, now), 5);
+  // Far decayed: the bonus and the clamp both keep it out of the negatives.
+  const longAgo = new Date(now.getTime() - 10 * 86400000);
+  assert.equal(applyHappiness({ happiness: 40, hatched_at: longAgo, happiness_at: longAgo }, now), 0);
+});
+
+test('an unhatched egg keeps its happiness untouched', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const egg = { happiness: 20, hatched_at: null, happiness_at: new Date(now.getTime() - 5 * 86400000) };
+  assert.equal(applyHappiness(egg, now), 20);
+});
+
+test('the pet state carries happiness beside food and play', async () => {
+  const token = tokenFor('happy-tester', 'hana');
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.happiness, 50);
+  v = await (await call('POST', '/api/hatch', { token })).json();
+  assert.equal(typeof v.pet.happiness, 'number');
+  assert.ok(v.pet.happiness >= 0 && v.pet.happiness <= 100);
+  v = await (await call('POST', '/api/feed', { token })).json();
+  assert.equal(v.pet.food, 60, 'food still behaves as before');
+  assert.ok(v.pet.happiness >= 0 && v.pet.happiness <= 100);
+});
+
+test('POST /api/pet changes name and species after hatching', async () => {
+  const token = tokenFor('change-tester', 'cleo');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('POST', '/api/pet', { token, body: { species: 'frog', name: 'Beans' } })).json();
+  assert.equal(v.pet.species, 'frog');
+  assert.equal(v.pet.name, 'Beans');
+
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.species, 'frog', 'the choice persists across a fresh read');
+  assert.equal(v.pet.name, 'Beans');
+
+  // The original hash stays stored; the choice wins only in the view.
+  v = await (await call('POST', '/api/pet', { token, body: { name: '' } })).json();
+  assert.equal(v.pet.species, 'frog', 'a name-only save keeps the chosen species');
+  assert.equal(v.pet.name, null, 'an empty name clears back to null');
+
+  const bad = await call('POST', '/api/pet', { token, body: { species: 'dragon' } });
+  assert.equal(bad.status, 400);
+
+  const badName = await call('POST', '/api/pet', { token, body: { name: 7 } });
+  assert.equal(badName.status, 400);
+});
+
+test('POST /api/pet refuses an unhatched egg', async () => {
+  const token = tokenFor('egg-tester', 'erin');
+  await (await call('GET', '/api/state', { token })).json();
+  const res = await call('POST', '/api/pet', { token, body: { species: 'frog' } });
+  assert.equal(res.status, 400);
+});
+
+test('the birthday is set, shown, cleared and persisted per pet', async () => {
+  const token = tokenFor('birthday-tester', 'bree');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.birthday, null, 'a fresh pet has no birthday');
+  assert.equal(v.pet.birthday_today, false);
+
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: '2020-02-29' } })).json();
+  assert.equal(v.pet.birthday, '2020-02-29');
+
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.birthday, '2020-02-29', 'the birthday persists across a fresh read');
+
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: '' } })).json();
+  assert.equal(v.pet.birthday, null, 'an empty string clears the birthday');
+
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: null } })).json();
+  assert.equal(v.pet.birthday, null);
+
+  const bad = await call('POST', '/api/pet', { token, body: { birthday: 'Feb 29' } });
+  assert.equal(bad.status, 400);
+
+  const bad2 = await call('POST', '/api/pet', { token, body: { birthday: '2020-13-01' } });
+  assert.equal(bad2.status, 400);
+});
+
+test('birthday_today is true only on the day, server-computed', async () => {
+  const token = tokenFor('birthdayday-tester', 'dana');
+  await call('POST', '/api/hatch', { token });
+
+  // A birthday stored for a date that is not today is never "today".
+  let v = await (await call('POST', '/api/pet', { token, body: { birthday: '2001-01-01' } })).json();
+  assert.equal(v.pet.birthday_today, false);
+
+  // Today's own date (UTC, the same clock the server stamps happiness with)
+  // lights the flag without any client involvement.
+  const today = new Date().toISOString().slice(0, 10);
+  v = await (await call('POST', '/api/pet', { token, body: { birthday: today } })).json();
+  assert.equal(v.pet.birthday, today);
+  assert.equal(v.pet.birthday_today, true);
+});
+
+test('POST /api/pet still refuses an unhatched egg with a birthday', async () => {
+  const token = tokenFor('eggbday-tester', 'elif');
+  await (await call('GET', '/api/state', { token })).json();
+  const res = await call('POST', '/api/pet', { token, body: { birthday: '2020-02-29' } });
+  assert.equal(res.status, 400);
+});
+
+test('the trick checklist persists per pet and validates the trick name', async () => {
+  const token = tokenFor('trick-tester', 'tara');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.deepEqual(v.pet.tricks, [
+    { trick: 'sit', done: false },
+    { trick: 'stay', done: false },
+    { trick: 'spin', done: false },
+  ]);
+  assert.equal(v.pet.tricks_complete, false);
+  assert.equal(v.pet.tricks_celebrated, false);
+
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks.filter((t) => t.trick === 'sit')[0].done, true);
+  assert.equal(v.pet.tricks_complete, false);
+
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.tricks.filter((t) => t.trick === 'sit')[0].done, true, 'the toggle persists');
+
+  // Unsetting a trick works both ways.
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: false } })).json();
+  assert.equal(v.pet.tricks.filter((t) => t.trick === 'sit')[0].done, false);
+
+  const bad = await call('POST', '/api/trick', { token, body: { trick: 'backflip' } });
+  assert.equal(bad.status, 400);
+});
+
+test('the celebration stamps once per pet and never replays after a reload', async () => {
+  const token = tokenFor('party-tester', 'paul');
+  await call('POST', '/api/hatch', { token });
+
+  let v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, false, 'one of three is not the moment');
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'stay', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, false, 'two of three is not the moment');
+
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'spin', done: true } })).json();
+  assert.equal(v.pet.tricks_complete, true);
+  assert.equal(v.pet.tricks_celebrated, true, 'the third done flag stamps the celebration');
+
+  // A reload re-reads the flag, never the missing overlay: the same answer
+  // arrives with or without another write in between.
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.tricks_celebrated, true);
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, true, 'a redundant toggle does not re-stamp');
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: false } })).json();
+  assert.equal(v.pet.tricks_celebrated, true, 'un-landing a trick does not clear the stamp');
+  v = await (await call('POST', '/api/trick', { token, body: { trick: 'sit', done: true } })).json();
+  assert.equal(v.pet.tricks_celebrated, true, 're-completing does not celebrate twice');
+
+  // Start over clears everything, celebration included.
+  const reset = process.env.USERNODE_ENV === 'staging';
+  if (reset) {
+    v = await (await call('POST', '/api/reset', { token })).json();
+    v = await (await call('GET', '/api/state', { token })).json();
+    assert.equal(v.pet.tricks_celebrated, false);
+  }
 });
 
 // The shell is public so the platform's tokenless check and capture

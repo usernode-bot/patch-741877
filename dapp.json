@@ -1,9 +1,7 @@
 {
   "name": "Patch",
   "description": "The Homeroom class pet. Hatch it, feed it, play with it, then help decide what it does next.",
-  "icon": {
-    "emoji": "🐣"
-  },
+  "icon": { "image": "brand/icon.png", "emoji": "🐣" },
   "secrets": [],
   "tests": [
     {
@@ -33,6 +31,50 @@
       "name": "Pet screen shows meters and note",
       "path": "/?demo=pet",
       "expectText": "See what they said"
+    },
+    {
+      "name": "Change pet dialog renders in shell",
+      "path": "/",
+      "expectSelector": "#change-pet"
+    },
+    {
+      "name": "Happiness meter sits beside the other meters",
+      "path": "/?demo=1",
+      "expectSelector": "#meter-happy",
+      "visual": true,
+      "id": "pet.happiness-meter",
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
+    },
+    {
+      "name": "Trick checklist renders on the pet screen",
+      "path": "/?demo=1",
+      "expectSelector": "#trick-panel .trick-check[data-trick='sit']",
+      "visual": true,
+      "id": "pet.trick-checklist",
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
+    },
+    {
+      "name": "Birthday badge shows on the pet screen",
+      "path": "/?demo=1",
+      "expectSelector": "#birthday-badge",
+      "visual": true,
+      "id": "pet.birthday-badge",
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
     }
   ]
 }

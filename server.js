@@ -40,6 +40,11 @@ app.use(express.json());
 
 const STEPS = ['egg', 'pet', 'feedback', 'proposal', 'try', 'vote', 'shipped', 'home'];
 
+// The trick-training checklist. A fixed list of three tricks, stored per pet
+// as three booleans plus the moment the full set was first celebrated: the
+// celebration replays never, even after a reload, until the pet starts over.
+const TRICKS = ['sit', 'stay', 'spin'];
+
 // Species is a pure function of the member id. Same member, same pet, on
 // every device, no reroll.
 function speciesFor(userId) {
@@ -57,12 +62,19 @@ function blankPet(userId, username) {
     name: null,
     food: 40,
     play: 20,
+    happiness: 50,
+    happiness_at: null,
     plays: 0,
     step: 'egg',
     agreed: false,
     vote: null,
     ball: false,
+    trick_sit: false,
+    trick_stay: false,
+    trick_spin: false,
+    tricks_celebrated_at: null,
     hatched_at: null,
+    birthday: null,
   };
 }
 
@@ -82,15 +94,30 @@ function pgStore() {
           name       TEXT,
           food       INTEGER NOT NULL DEFAULT 40,
           play       INTEGER NOT NULL DEFAULT 20,
+          happiness  INTEGER NOT NULL DEFAULT 50,
+          happiness_at TIMESTAMPTZ,
           plays      INTEGER NOT NULL DEFAULT 0,
           step       TEXT NOT NULL DEFAULT 'egg',
           agreed     BOOLEAN NOT NULL DEFAULT FALSE,
           vote       TEXT,
           ball       BOOLEAN NOT NULL DEFAULT FALSE,
+          trick_sit     BOOLEAN NOT NULL DEFAULT FALSE,
+          trick_stay    BOOLEAN NOT NULL DEFAULT FALSE,
+          trick_spin    BOOLEAN NOT NULL DEFAULT FALSE,
+          tricks_celebrated_at TIMESTAMPTZ,
+          birthday DATE,
+          chosen_species TEXT,
           hatched_at TIMESTAMPTZ,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS chosen_species TEXT`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS happiness_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_sit BOOLEAN NOT NULL DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_stay BOOLEAN NOT NULL DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_spin BOOLEAN NOT NULL DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS tricks_celebrated_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS birthday DATE`);
       await pool.query(`COMMENT ON TABLE pets IS 'staging:private'`);
     },
     async get(userId, username) {
@@ -109,12 +136,17 @@ function pgStore() {
     },
     async save(pet) {
       const { rows } = await pool.query(`
-        UPDATE pets SET username = $2, name = $3, food = $4, play = $5, plays = $6,
-               step = $7, agreed = $8, vote = $9, ball = $10, hatched_at = $11,
-               updated_at = NOW()
+        UPDATE pets SET username = $2, name = $3, food = $4, play = $5, happiness = $6,
+               happiness_at = $7, plays = $8, step = $9, agreed = $10, vote = $11,
+               ball = $12, chosen_species = $13, hatched_at = $14,
+               trick_sit = $15, trick_stay = $16, trick_spin = $17,
+               tricks_celebrated_at = $18, birthday = $19, updated_at = NOW()
         WHERE user_id = $1 RETURNING *
-      `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.plays,
-          pet.step, pet.agreed, pet.vote, pet.ball, pet.hatched_at]);
+      `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.happiness, pet.happiness_at === undefined ? null : pet.happiness_at,
+          pet.plays, pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
+          pet.hatched_at, !!pet.trick_sit, !!pet.trick_stay, !!pet.trick_spin,
+          pet.tricks_celebrated_at === undefined ? null : pet.tricks_celebrated_at,
+          pet.birthday === undefined ? null : pet.birthday]);
       return rows[0];
     },
     async reset(userId) {
@@ -168,17 +200,31 @@ const PROPOSAL = {
 };
 
 function view(pet) {
+  var days = 0;
+  if (pet.hatched_at) {
+    days = Math.max(0, Math.floor((Date.now() - new Date(pet.hatched_at).getTime()) / 86400000));
+  }
   return {
     pet: {
-      species: pet.species,
+      species: pet.chosen_species || pet.species,
       name: pet.name === undefined ? null : pet.name,
+      days: days,
       food: pet.food,
       play: pet.play,
+      happiness: pet.happiness,
       plays: pet.plays,
       step: pet.step,
       agreed: !!pet.agreed,
       vote: pet.vote === undefined ? null : pet.vote,
       ball: !!pet.ball,
+      // The trick checklist, additive on top of the existing shape. The
+      // celebrated flag is what makes the celebration a once-per-pet moment:
+      // it stays true after the confetti, so a reload replays nothing.
+      tricks: TRICKS.map(function (trick) { return { trick: trick, done: !!pet['trick_' + trick] }; }),
+      tricks_complete: TRICKS.every(function (trick) { return !!pet['trick_' + trick]; }),
+      tricks_celebrated: !!pet.tricks_celebrated_at,
+      birthday: birthdayKey(pet.birthday),
+      birthday_today: birthdayToday(pet, new Date()),
     },
     username: pet.username,
     // Staging previews get a Start over link in the home footer, because a
@@ -200,6 +246,52 @@ function advance(pet, step) {
   if (STEPS.indexOf(step) > STEPS.indexOf(pet.step)) pet.step = step;
 }
 
+// Happiness. A first action on a new day earns +20; each full day since the
+// last happiness update takes 15 away (an egg has nothing to be happy about
+// yet). Clamped to 0..100 and stamped on every update, so extra actions in
+// the same day change nothing: the bonus lands once a day, not once a click.
+const HAPPINESS_VISIT_BONUS = 20;
+const HAPPINESS_DECAY_PER_DAY = 15;
+
+function applyHappiness(pet, now) {
+  if (!pet.hatched_at) return pet.happiness;
+  const value = Number.isFinite(Number(pet.happiness)) ? Number(pet.happiness) : 50;
+  let next = value;
+  const baseline = pet.happiness_at ? new Date(pet.happiness_at) : new Date(pet.hatched_at);
+  if (!isNaN(baseline.getTime())) {
+    const elapsed = Math.max(0, Math.floor((now.getTime() - baseline.getTime()) / 86400000));
+    next -= elapsed * HAPPINESS_DECAY_PER_DAY;
+    if (elapsed >= 1) next += HAPPINESS_VISIT_BONUS;
+  }
+  next = Math.max(0, Math.min(100, next));
+  pet.happiness = next;
+  pet.happiness_at = now;
+  return pet.happiness;
+}
+
+// The birthday is one plain YYYY-MM-DD string everywhere: the client saves
+// exactly that, Postgres hands a DATE column back as a JS Date at midnight
+// UTC, and the memory store keeps whatever /api/pet stored. Normalize once
+// here so the view, the badge check and the stats line all see the same shape.
+function birthdayKey(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+}
+
+// Is today the pet's birthday? Computed server-side on the same UTC clock
+// every other daily rule (happiness decay, visit bonus) uses, so every
+// device agrees on the day. An egg has no birthday to celebrate yet.
+function birthdayToday(pet, now) {
+  const stored = birthdayKey(pet.birthday);
+  if (!stored || !pet.hatched_at) return false;
+  const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat)
+    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(now)
+    : now.toISOString().slice(0, 10);
+  return tz === stored;
+}
+
 // ---------------------------------------------------------------------------
 // The platform's three centrally hosted files — the bridge, the native UI
 // kit and the Tailwind runtime — are reachable at these paths on this app's
@@ -214,6 +306,31 @@ function advance(pet, step) {
 // ---------------------------------------------------------------------------
 const PLATFORM_ORIGIN = (process.env.USERNODE_PLATFORM_ORIGIN || '')
   .replace(/\/+$/, '');
+// In-loop dev containers have no platform edge to reach, so the hosted
+// bridge tag 503s and every check route logs a console error it did not
+// cause. When the platform is unreachable, serve a tiny offline shim so
+// the page can still load (and log) cleanly; on the platform the real file
+// is served, and this fallback never activates.
+app.get('/usernode-bridge/v1/bridge.js', async (req, res) => {
+  try {
+    if (!PLATFORM_ORIGIN) {
+      // No platform edge to proxy from (a bare local run): serve a tiny
+      // offline shim so the page loads without a console error. On every
+      // real deployment PLATFORM_ORIGIN is set and the real file is served.
+      res.type('application/javascript');
+      return res.send('/* bridge offline shim: no platform edge to proxy */\n');
+    }
+    const upstream = await fetch(PLATFORM_ORIGIN + req.path);
+    if (!upstream.ok) return res.sendStatus(upstream.status);
+    const type = upstream.headers.get('content-type');
+    if (type) res.type(type);
+    res.set('Cache-Control', 'public, max-age=0, must-revalidate');
+    return res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (err) {
+    console.warn('hosted asset fetch failed: ' + err.message);
+    return res.sendStatus(502);
+  }
+});
 
 app.get(/^\/usernode-(?:bridge|native|tailwind)\//, async (req, res) => {
   try {
@@ -305,10 +422,12 @@ app.post('/api/hatch', handler((pet) => {
 }));
 
 app.post('/api/feed', handler((pet) => {
+  applyHappiness(pet, new Date());
   pet.food = Math.min(100, pet.food + 20);
 }));
 
 app.post('/api/play', handler((pet) => {
+  applyHappiness(pet, new Date());
   pet.play = Math.min(100, pet.play + (pet.ball ? 25 : 10));
   pet.plays += 1;
 }));
@@ -329,6 +448,41 @@ app.post('/api/vote', handler((pet, req, res) => {
   advance(pet, 'shipped');
 }));
 
+// Change the pet after it has hatched: a new name, a new type, or both.
+// The egg stays untouched so the hatch moment keeps its surprise.
+app.post('/api/pet', handler((pet, req, res) => {
+  if (pet.step === 'egg') {
+    res.status(400).json({ error: 'the egg has not hatched yet' });
+    return false;
+  }
+  const body = req.body || {};
+  if (body.species !== undefined) {
+    if (typeof body.species !== 'string' || SPECIES.indexOf(body.species) === -1) {
+      res.status(400).json({ error: 'unknown species' });
+      return false;
+    }
+    pet.chosen_species = body.species;
+  }
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string') {
+      res.status(400).json({ error: 'name must be a string' });
+      return false;
+    }
+    const name = body.name.trim().slice(0, 24);
+    pet.name = name ? name : null;
+  }
+  if (body.birthday !== undefined) {
+    if (body.birthday === null || body.birthday === '') {
+      pet.birthday = null;
+    } else if (typeof body.birthday === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.birthday) && !isNaN(new Date(body.birthday + 'T00:00:00Z').getTime())) {
+      pet.birthday = body.birthday;
+    } else {
+      res.status(400).json({ error: 'birthday must be YYYY-MM-DD' });
+      return false;
+    }
+  }
+}));
+
 app.post('/api/ship', handler((pet) => {
   pet.ball = true;
   advance(pet, 'home');
@@ -341,6 +495,25 @@ app.post('/api/step', handler((pet, req, res) => {
     return false;
   }
   advance(pet, step);
+  applyHappiness(pet, new Date());
+}));
+
+// Toggle one trick on the checklist. The trick name is validated against the
+// fixed list; anything else is a 400, the same contract as /api/step.
+app.post('/api/trick', handler((pet, req, res) => {
+  const trick = req.body && req.body.trick;
+  const done = !!(req.body && req.body.done);
+  if (TRICKS.indexOf(trick) === -1) {
+    res.status(400).json({ error: 'unknown trick' });
+    return false;
+  }
+  pet['trick_' + trick] = done;
+  // Once, per pet. The run that completes the set stamps the celebration;
+  // every later toggle (or re-read) keeps the stamp, so the moment never
+  // replays on a reload. Start over clears it with everything else.
+  if (!pet.tricks_celebrated_at && TRICKS.every((t) => !!pet['trick_' + t])) {
+    pet.tricks_celebrated_at = new Date();
+  }
 }));
 
 // Staging only: wipe the caller's OWN row so onboarding can be replayed in a
@@ -414,4 +587,7 @@ if (require.main === module) {
   start().catch(err => { console.error(err); process.exit(1); });
 }
 
-module.exports = { app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view, FEEDBACK, PROPOSAL };
+module.exports = {
+  app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view,
+  FEEDBACK, PROPOSAL, applyHappiness, TRICKS, birthdayToday, birthdayKey,
+};
