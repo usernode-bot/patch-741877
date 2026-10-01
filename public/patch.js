@@ -216,8 +216,17 @@
 
   // ---- rendering ---------------------------------------------------------
 
+  // The species line ages with the pet: under a week it is brand new,
+  // under a month it is settled in, after that it is a veteran. Within a
+  // bucket the line rotates by day (UTC day count, matching how the server
+  // counts pet.days), so it can change between visits but holds still
+  // within one.
   function speciesLine() {
-    var line = EMOJI[state.pet.species].line;
+    var e = EMOJI[state.pet.species];
+    var bucket = state.pet.days < 7 ? 'new' : (state.pet.days < 30 ? 'settled' : 'veteran');
+    var lines = e.lines[bucket];
+    var dayIndex = Math.floor(Date.now() / 86400000);
+    var line = lines[dayIndex % lines.length];
     if (state.pet.name) return line.replace(/^[^.]*\./, state.pet.name + '.');
     return line;
   }

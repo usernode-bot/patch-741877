@@ -73,6 +73,25 @@ test('every manifest entry has a vendored Lottie file', () => {
   }
 });
 
+test('every species has age-bucketed lines including the original', () => {
+  for (const key of SPECIES) {
+    const e = EMOJI[key];
+    assert.ok(e.lines, key + ' has no lines object');
+    for (const bucket of ['new', 'settled', 'veteran']) {
+      const lines = e.lines[bucket];
+      assert.ok(Array.isArray(lines) && lines.length >= 2, key + ' bucket ' + bucket + ' needs at least 2 lines');
+      assert.equal(new Set(lines).size, lines.length, key + ' bucket ' + bucket + ' has duplicate lines');
+      for (const line of lines) {
+        assert.ok(/^[^.]*\./.test(line), key + ' line lacks a period in its first sentence: ' + line);
+      }
+    }
+    assert.ok(
+      Object.values(e.lines).some((lines) => lines.includes(e.line)),
+      key + ' original line is missing from the bucketed set',
+    );
+  }
+});
+
 test('the loop: hatch, feed, play, agree, vote, ship', async () => {
   const token = tokenFor('loop-tester', 'lukas');
 
