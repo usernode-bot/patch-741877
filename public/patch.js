@@ -31,6 +31,9 @@
   var feedIndex = 0;
   var tryMode = 'after';
   var busy = false;
+  // ?demo=pet: a fixed, local pet screen for reviewers and the checks. No
+  // token, no requests, nothing stored.
+  var isDemo = params.get('demo') === 'pet';
   var birthdayToasted = false;
 
   function $(id) { return document.getElementById(id); }
@@ -244,6 +247,8 @@
     $('pet-stats').textContent = petStatsText();
     $('meter-food').style.width = state.pet.food + '%';
     $('meter-play').style.width = state.pet.play + '%';
+    $('bar-food').setAttribute('aria-valuenow', String(state.pet.food));
+    $('bar-play').setAttribute('aria-valuenow', String(state.pet.play));
     $('meter-happy').style.width = state.pet.happiness + '%';
     $('bridge').hidden = isHome || state.pet.plays < 2;
     $('home-foot').hidden = !isHome;
@@ -535,6 +540,11 @@
     burst($('pet-fx'), 'apple');
     say($('pet-speech'), feedLines[feedIndex % feedLines.length]);
     feedIndex += 1;
+    if (isDemo) {
+      state.pet.food = Math.min(100, state.pet.food + 20);
+      renderPet(current === 'home');
+      return;
+    }
     return api('/api/feed', {}).then(function (v) { state = v; renderPet(current === 'home'); });
   }));
 
@@ -546,11 +556,18 @@
       hop($('pet-sticker'));
       say($('pet-speech'), 'hop.');
     }
+    if (isDemo) {
+      state.pet.play = Math.min(100, state.pet.play + (state.pet.ball ? 25 : 10));
+      state.pet.plays += 1;
+      renderPet(current === 'home');
+      return;
+    }
     return api('/api/play', {}).then(function (v) { state = v; renderPet(current === 'home'); });
   }));
 
   $('bridge-link').addEventListener('click', function (e) {
     e.preventDefault();
+    if (isDemo) return;
     guard(function () { return goStep('feedback'); })();
   });
 
@@ -676,11 +693,21 @@
       staging: true, feedback: null, proposal: null,
     };
     show('home');
+  } else if (isDemo) {
+    state = {
+      pet: {
+        species: 'turtle', name: null, food: 60, play: 40, plays: 2,
+        step: 'pet', agreed: false, vote: null, ball: false,
+      },
+      username: 'you',
+      staging: false,
+      feedback: { id: 'fb-play-hop', author: 'Maya', text: 'Play only makes it hop. It needs something to play with ⚽', agrees: 4 },
+      proposal: { id: 'prop-play-ball', author: 'Noor', title: 'Play throws a ball', addresses: 'fb-play-hop', yes: 11, no: 1 },
+    };
+    app.dataset.demo = 'pet';
+    show('pet');
+    skipBtn.hidden = true;
   } else if (token) {
-
-  // With no platform token (a direct visit to the app's own address) there is
-  // no pet to ask for: the markup already shows the egg, so leave it there
-  // rather than firing a request that can only come back 401.
     api('/api/state').then(function (v) {
       state = v;
       show(state.pet.step);
@@ -688,4 +715,7 @@
       if (String(err.message).indexOf(' 401') === -1) console.error(err);
     });
   }
+  // With no platform token and no demo flag (a direct visit to the app's own
+  // address) there is no pet to ask for: the markup already shows the egg, so
+  // leave it there rather than firing a request that can only come back 401.
 })();

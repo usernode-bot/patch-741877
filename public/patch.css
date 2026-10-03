@@ -12,6 +12,18 @@
   --yellow: #ffee6f;   /* egg, food meter, pressed segment */
   --green:  #a9cf97;   /* play meter */
 
+  /* The game layer: the scene, the raised buttons, the sticky note. */
+  --sky:     #cfeaf6;  /* scene sky, top */
+  --sky-2:   #eef8fb;  /* scene sky, at the horizon */
+  --grass:   #a9cf97;  /* the hill, Play button */
+  --grass-2: #86b870;  /* hill rim */
+  --coral:   #ff9a6e;  /* Feed button, apple badge */
+  --note:    #fff6b8;  /* the sticky note */
+  --depth:   5px;      /* how far a game button stands off its base */
+  /* No font file is vendored (no CDN, and the image build never reaches the
+     network), so the game type is a rounded stack at heavy weights. */
+  --font-game: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", "Varela Round", system-ui, sans-serif;
+
   --top:    var(--un-safe-inset-top, env(safe-area-inset-top, 0px));
   --bottom: var(--un-safe-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
@@ -31,6 +43,9 @@ body {
   line-height: 1.45;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+  /* A faint dot pattern on body only: html keeps the flat, opaque ground. */
+  background-image: radial-gradient(rgba(18, 26, 14, 0.06) 1.2px, transparent 1.6px);
+  background-size: 18px 18px;
 }
 
 #app {
@@ -41,13 +56,15 @@ body {
   flex-direction: column;
 }
 
-.beat { display: flex; flex-direction: column; gap: 14px; }
+.beat { display: flex; flex-direction: column; gap: 16px; }
 [hidden] { display: none !important; }
 
 h1 {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-family: var(--font-game);
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-shadow: 0 3px 0 var(--yellow);
   line-height: 1.15;
   margin: 0;
   text-wrap: balance;
@@ -55,14 +72,14 @@ h1 {
 /* Room for the fixed Skip button while onboarding is on screen. */
 body:not(.home) h1 { padding-right: 56px; }
 
-h2 { font-size: 19px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
+h2 { font-family: var(--font-game); font-size: 19px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
 p  { margin: 0; }
 
 .hint  { color: var(--ink-2); }
 .line  { color: var(--ink); }
 .small { color: var(--ink-3); font-size: 13px; }
 
-.loop { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.loop { font-family: var(--font-game); font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
 
 .stamp {
   font-size: 12px;
@@ -76,21 +93,31 @@ p  { margin: 0; }
 
 .btn {
   appearance: none;
-  min-height: 48px;
+  min-height: 52px;
   padding: 0 20px;
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
+  border: 2.5px solid var(--ink);
+  border-radius: 18px;
   background: var(--card);
   color: var(--ink);
   font: inherit;
-  font-weight: 700;
+  font-family: var(--font-game);
+  font-weight: 800;
   cursor: pointer;
+  box-shadow: 0 var(--depth) 0 var(--ink);
+  margin-bottom: var(--depth);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
-.btn.primary { background: var(--pill); border-color: var(--pill); color: #fff; }
-.btn:disabled { opacity: 0.55; cursor: default; }
-.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.primary { background: var(--pill); border-color: var(--ink); color: #fff; }
+.btn:disabled { opacity: 0.55; cursor: default; box-shadow: 0 2px 0 var(--ink); transform: translateY(3px); }
+/* Pressed: the button sinks onto its base, then pops back on release. */
+.btn:active:not(:disabled) { transform: translateY(var(--depth)); box-shadow: 0 0 0 var(--ink); }
 
-.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+/* The pet screen's control pad: two equal, taller buttons. */
+.actions .btn.game, .btn.game { min-height: 64px; flex: 1 1 0; font-size: 18px; }
+.btn.game#btn-feed { background: var(--coral); color: var(--ink); }
+.btn.game#btn-play { background: var(--grass); color: var(--ink); }
+
+.actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .actions .btn { flex: 1 1 auto; }
 
 .link {
@@ -111,16 +138,20 @@ a { color: var(--pill); font-weight: 700; }
   right: 12px;
   z-index: 20;
   appearance: none;
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
   background: var(--card);
   color: var(--ink);
   font: inherit;
-  font-weight: 700;
+  font-family: var(--font-game);
+  font-weight: 800;
   font-size: 14px;
-  padding: 8px 14px;
+  padding: 7px 14px;
   cursor: pointer;
+  box-shadow: 0 3px 0 var(--ink);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
+.skip:active { transform: translateY(3px); box-shadow: 0 0 0 var(--ink); }
 body.home .skip { display: none; }
 
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
@@ -133,6 +164,96 @@ body.home .skip { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ---- the scene: a framed little world behind the pet ---------------------- */
+
+.stage.scene {
+  height: 280px;
+  border: 3px solid var(--ink);
+  border-radius: 28px;
+  background: linear-gradient(180deg, var(--sky) 0%, var(--sky-2) 78%);
+  box-shadow: 0 6px 0 var(--ink);
+  margin-bottom: 6px;
+  /* The ball rolls in from beyond the frame's edge. */
+  overflow: hidden;
+  isolation: isolate;
+}
+/* The cream bezel sits over the scenery, under nothing that matters. */
+.stage.scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 25px;
+  box-shadow: inset 0 0 0 6px var(--card), inset 0 0 0 8.5px var(--ink);
+  pointer-events: none;
+  z-index: 5;
+}
+.scene .pet-idle { margin-top: 22px; }
+.scene .egg { margin-top: 12px; }
+
+.scenery { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+
+.cloud {
+  position: absolute;
+  width: 72px;
+  height: 34px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 34'%3E%3Cpath d='M12 31 C4 31 2 22 9 19 C8 11 17 7 23 12 C26 3 41 1 45 11 C51 6 61 10 59 18 C68 18 70 31 60 31 Z' fill='%23fffeea' stroke='%23121a0e' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
+  animation: drift 40s linear infinite;
+}
+.cloud.c1 { top: 26px; left: 10%; }
+.cloud.c2 { top: 62px; left: 58%; width: 54px; height: 26px; animation-duration: 55s; animation-delay: -20s; }
+
+@keyframes drift {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(34px); }
+}
+
+.scene-hill {
+  position: absolute;
+  left: -18%;
+  right: -18%;
+  bottom: -128px;
+  height: 196px;
+  border-radius: 50%;
+  background: var(--grass);
+  border: 3px solid var(--grass-2);
+  box-shadow: inset 0 6px 0 rgba(255, 254, 234, 0.35);
+}
+
+.pet-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 38px;
+  width: 116px;
+  height: 16px;
+  margin-left: -58px;
+  border-radius: 50%;
+  background: rgba(18, 26, 14, 0.18);
+  z-index: 0;
+  animation: shadow-breathe 2.8s ease-in-out infinite;
+}
+
+/* Idle breathing. It lives on a wrapper, because .hop and .leap already own
+   the sticker's transform. A transform on a parent is compositor work, so
+   the sticker rule holds: the Lottie stays parked, no filter goes live. */
+.pet-idle {
+  position: relative;
+  z-index: 1;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  animation: breathe 2.8s ease-in-out infinite;
+}
+.pet-idle:has(> .alive, > .hop, > .leap) { animation-play-state: paused; }
+.stage:has(.alive, .hop, .leap) .pet-shadow { animation-play-state: paused; }
+
+@keyframes breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50%      { transform: translateY(-5px) scaleY(0.985); }
+}
+@keyframes shadow-breathe {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50%      { transform: scaleX(0.86); opacity: 0.8; }
 }
 
 .pet-box {
@@ -179,15 +300,30 @@ body.home .skip { display: none; }
 
 .speech {
   position: absolute;
-  top: 8px;
+  top: 22px;
   right: 118px;
   z-index: 4;
   background: var(--card);
-  border: 1.5px solid var(--ink);
-  border-radius: 12px;
-  padding: 6px 12px;
-  font-weight: 700;
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  padding: 6px 14px;
+  font-family: var(--font-game);
+  font-weight: 800;
   white-space: nowrap;
+  box-shadow: 0 3px 0 var(--ink);
+}
+/* The comic tail, pointing down toward the pet. */
+.speech::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: -8px;
+  width: 12px;
+  height: 12px;
+  background: var(--card);
+  border-right: 2.5px solid var(--ink);
+  border-bottom: 2.5px solid var(--ink);
+  transform: rotate(45deg) skew(8deg, 8deg);
 }
 
 /* The birthday badge hangs off the pet's top-left, the speech bubble's
@@ -259,18 +395,57 @@ body.home .skip { display: none; }
 
 /* ---- meters, cards, fields ---------------------------------------------- */
 
-.meters { display: flex; flex-direction: column; gap: 8px; }
-.meter-row { display: flex; align-items: center; gap: 10px; }
-.meter-label { width: 42px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.meters { display: flex; flex-direction: column; gap: 10px; }
+.meter-row { display: flex; align-items: flex-end; gap: 10px; }
+.meter-badge {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 3px 0 var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 3px;
+}
+.meter-badge svg { display: block; }
+.meter-body { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.meter-label {
+  font-family: var(--font-game);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
 .meter {
-  flex: 1;
-  height: 14px;
-  border: 1.5px solid var(--ink);
+  position: relative;
+  height: 22px;
+  border: 2.5px solid var(--ink);
   border-radius: 999px;
   background: var(--line);
+  box-shadow: inset 0 3px 0 rgba(18, 26, 14, 0.12);
   overflow: hidden;
 }
-.fill { display: block; height: 100%; width: 0; transition: width 0.35s ease; }
+/* Five notched sections, so "about three-fifths" reads at a glance. */
+.meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg,
+    transparent 0, transparent calc(20% - 2px),
+    rgba(18, 26, 14, 0.22) calc(20% - 2px), rgba(18, 26, 14, 0.22) 20%);
+  pointer-events: none;
+}
+.fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.55), inset -2px 0 0 rgba(18, 26, 14, 0.25);
+  transition: width 0.35s ease;
+}
 .fill.food { background: var(--yellow); }
 .fill.play { background: var(--green); }
 .fill.happy { background: var(--pill); }
@@ -290,6 +465,17 @@ body.home .skip { display: none; }
 .card-count { font-size: 14px; color: var(--ink-2); }
 .card-ready { font-size: 14px; color: var(--ink-2); }
 .quote { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; }
+
+.bridge {
+  color: var(--ink-2);
+  background: var(--note);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 3px 4px 0 var(--ink);
+  transform: rotate(-1deg);
+}
+.bridge a { color: var(--pill); font-weight: 800; }
 
 /* ---- trick checklist ----------------------------------------------------- */
 /* Built from the parts the pet screen already uses: the card's ink border,
@@ -372,14 +558,14 @@ body.home .skip { display: none; }
   to   { transform: scale(1); opacity: 1; }
 }
 
-.bridge { color: var(--ink-2); }
-
 .segmented {
   display: flex;
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
   overflow: hidden;
   align-self: stretch;
+  box-shadow: 0 3px 0 var(--ink);
+  margin-bottom: 3px;
 }
 .seg {
   appearance: none;
@@ -389,10 +575,11 @@ body.home .skip { display: none; }
   background: var(--card);
   color: var(--ink);
   font: inherit;
-  font-weight: 700;
+  font-family: var(--font-game);
+  font-weight: 800;
   cursor: pointer;
 }
-.seg + .seg { border-left: 1.5px solid var(--ink); }
+.seg + .seg { border-left: 2.5px solid var(--ink); }
 .seg.on { background: var(--yellow); }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -407,7 +594,7 @@ body.home .skip { display: none; }
   font: inherit;
 }
 
-.payoff { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.payoff { font-family: var(--font-game); font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
 .tally  { color: var(--ink-2); font-weight: 700; }
 
 .foot {
@@ -444,4 +631,6 @@ dialog .segmented .seg + .seg { border-left: 1.5px solid var(--ink); }
   .ball-slot.rolling { transition: none; }
   .sticker > svg.halo { transition: none; }
   .fill { transition: none; }
+  .pet-idle, .pet-shadow, .cloud { animation: none; }
+  .btn, .skip { transition: none; }
 }

@@ -15,6 +15,24 @@
       "expectText": "An egg"
     },
     {
+      "id": "pet.home",
+      "name": "Pet screen renders as a game",
+      "path": "/?demo=pet",
+      "expectSelector": "#app[data-step=\"pet\"] .scene .pet-idle",
+      "visual": true,
+      "impact": [
+        "public/index.html",
+        "public/patch.css",
+        "public/patch.js",
+        "public/emoji-manifest.js"
+      ]
+    },
+    {
+      "name": "Pet screen shows meters and note",
+      "path": "/?demo=pet",
+      "expectText": "See what they said"
+    },
+    {
       "name": "Change pet dialog renders in shell",
       "path": "/",
       "expectSelector": "#change-pet"

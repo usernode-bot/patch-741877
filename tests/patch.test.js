@@ -327,3 +327,24 @@ test('without a token the data is closed but the shell renders', async () => {
   assert.match(html, /id="egg"/);
   assert.equal((await call('GET', '/health')).status, 200);
 });
+
+test('every stage is a framed scene and the pet screen keeps its meters', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const stages = html.match(/<div class="stage[^"]*"/g) || [];
+  assert.equal(stages.length, 4, 'expected four stages');
+  for (const s of stages) assert.ok(/\bscene\b/.test(s), s + ' is not a scene');
+  assert.ok(html.includes('id="meter-food"'));
+  assert.ok(html.includes('id="meter-play"'));
+  assert.ok(html.includes('usernode-dev-console@1'), 'the dev console forwarder must stay');
+});
+
+test('every visual dapp.json test carries id, impact and a readiness assertion', () => {
+  const dapp = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'dapp.json'), 'utf8'));
+  const visual = dapp.tests.filter((t) => t.visual);
+  assert.ok(visual.length >= 1, 'expected at least one visual test');
+  for (const t of visual) {
+    assert.ok(t.id, t.name + ' has no id');
+    assert.ok(Array.isArray(t.impact) && t.impact.length, t.name + ' has no impact');
+    assert.ok(t.expectSelector || t.expectText, t.name + ' has no expectSelector or expectText');
+  }
+});
