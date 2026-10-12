@@ -513,14 +513,25 @@
   });
 
   function hatch() {
+    var HATCH_LOOPS = 3;
     eggBtn.hidden = true;
     var box = $('hatch-box');
     box.hidden = false;
     burst($('egg-fx'), 'sparkles');
     var chick = window.lottie.loadAnimation({
-      container: box, renderer: 'svg', loop: false, autoplay: true, path: src('hatch'),
+      container: box, renderer: 'svg', loop: true, autoplay: true, path: src('hatch'),
     });
+    var done = false;
     var handOver = function () {
+      if (done) return;
+      done = true;
+      if (current !== 'egg') {
+        // Skip already hatched and moved on: tear the animation down only.
+        try { chick.destroy(); } catch (e) {}
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+      }
       api('/api/hatch', {}).then(function (v) {
         state = v;
         try { chick.destroy(); } catch (e) {}
@@ -529,8 +540,15 @@
         show('pet', { justHatched: true });
       }).catch(function (err) { console.error(err); });
     };
-    // loop: false and hand over on complete. A looping hatch never hands over.
-    chick.addEventListener('complete', handOver);
+    // Play HATCH_LOOPS whole loops, then hand over — the same counted-loops
+    // pattern wake() uses. A looping hatch never emits complete.
+    var seen = 0;
+    var settle = function () {
+      if (++seen < HATCH_LOOPS) return;
+      chick.removeEventListener('loopComplete', settle);
+      handOver();
+    };
+    chick.addEventListener('loopComplete', settle);
     if (reduce) setTimeout(handOver, 600);
   }
 
