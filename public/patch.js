@@ -3,6 +3,7 @@
   'use strict';
 
   var EMOJI = window.PATCH_EMOJI.EMOJI;
+  var lineFor = window.PATCH_EMOJI.lineFor;
   var params = new URLSearchParams(window.location.search);
   // Staging-only demo: the screenshot/check route has no platform token, so
   // with ?demo=1 the pet beat renders from a fixed demo pet. It never calls
@@ -220,7 +221,7 @@
   // ---- rendering ---------------------------------------------------------
 
   function speciesLine() {
-    var line = EMOJI[state.pet.species].line;
+    var line = lineFor(state.pet.species, state.pet.days);
     if (state.pet.name) return line.replace(/^[^.]*\./, state.pet.name + '.');
     return line;
   }
@@ -681,7 +682,7 @@
   if (DEMO) {
     state = {
       pet: {
-        species: 'turtle', name: 'Demo', days: 3, food: 60, play: 45,
+        species: 'turtle', name: 'Demo', days: 8, food: 60, play: 45,
         plays: 2, step: 'home', agreed: false, vote: null, ball: true,
         happiness: 72,
         tricks: [{ trick: 'sit', done: false }, { trick: 'stay', done: false }, { trick: 'spin', done: false }],
