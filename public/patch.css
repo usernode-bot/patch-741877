@@ -264,6 +264,9 @@ body.home .skip { display: none; }
 
 .pet-box svg { display: block; width: 100%; height: 100%; }
 
+/* The pet answers a tap with hi, so it invites the tap like the egg does. */
+#pet-sticker { cursor: pointer; }
+
 /* The live Lottie sits above its own static clone. Never put a CSS filter on
    the live one: a drop-shadow stack measured 8 fps where the clone-with-an-
    SVG-filter measures 60. */

@@ -30,6 +30,8 @@
   var current = 'egg';
   var feedLines = ['It counts.', 'Fed. Again.', 'nom'];
   var feedIndex = 0;
+  var hiLines = ['hi.', 'oh, hi.', 'hey.'];
+  var hiIndex = 0;
   var tryMode = 'after';
   var busy = false;
   // ?demo=pet: a fixed, local pet screen for reviewers and the checks. No
@@ -583,6 +585,16 @@
     }
     return api('/api/play', {}).then(function (v) { state = v; renderPet(current === 'home'); });
   }));
+
+  // Tapping the pet itself: wake, hop, hi. Not wrapped in guard — it makes no
+  // API call and must not take the shared busy lock.
+  $('pet-sticker').addEventListener('click', function () {
+    if (!$('pet-ball').hidden) return; // a ball round owns the pet's motion
+    wake($('pet-sticker'), 1);
+    hop($('pet-sticker'));
+    say($('pet-speech'), hiLines[hiIndex % hiLines.length]);
+    hiIndex += 1;
+  });
 
   $('bridge-link').addEventListener('click', function (e) {
     e.preventDefault();

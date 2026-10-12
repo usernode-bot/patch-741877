@@ -338,6 +338,18 @@ test('every stage is a framed scene and the pet screen keeps its meters', () => 
   assert.ok(html.includes('usernode-dev-console@1'), 'the dev console forwarder must stay');
 });
 
+test('tapping the pet says hi and the pet reads as tappable', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
+  assert.match(
+    js, /\$\('pet-sticker'\)\.addEventListener\('click'/,
+    'the pet sticker has no click listener');
+  assert.ok(js.includes("'hi.'"), 'patch.js has no hi. greeting line');
+  assert.match(
+    css, /#pet-sticker\s*\{[^}]*cursor:\s*pointer/,
+    'the pet sticker does not show a pointer cursor');
+});
+
 test('every species has five age lines in its own voice', () => {
   for (const key of SPECIES) {
     const e = EMOJI[key];
