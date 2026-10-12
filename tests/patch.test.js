@@ -21,7 +21,7 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
 });
 process.env.USERNODE_JWT_PUBLIC_KEY = publicKey;
 
-const { app, speciesFor, SPECIES, EMOJI, applyHappiness } = require('../server.js');
+const { app, speciesFor, SPECIES, EMOJI, applyHappiness, applyNeeds, NEEDS_DECAY_PER_DAY } = require('../server.js');
 
 function tokenFor(id, username) {
   return jwt.sign(
@@ -159,6 +159,81 @@ test('an unhatched egg keeps its happiness untouched', () => {
   const now = new Date('2026-09-26T12:00:00Z');
   const egg = { happiness: 20, hatched_at: null, happiness_at: new Date(now.getTime() - 5 * 86400000) };
   assert.equal(applyHappiness(egg, now), 20);
+});
+
+// --- needs decay (food and play) ---
+
+test('an unhatched egg keeps its needs untouched', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const egg = { food: 40, play: 20, hatched_at: null, food_at: null, play_at: null };
+  applyNeeds(egg, now);
+  assert.equal(egg.food, 40);
+  assert.equal(egg.play, 20);
+  assert.equal(egg.food_at, null);
+  assert.equal(egg.play_at, null);
+});
+
+test('needs decay is ' + NEEDS_DECAY_PER_DAY + ' per full day, and nothing else', () => {
+  assert.equal(NEEDS_DECAY_PER_DAY, 10);
+  const now = new Date('2026-09-26T12:00:00Z');
+  const stamp = new Date(now.getTime() - 23 * 3600 * 1000);
+  // Less than a full day: nothing moves, not even the stamp.
+  const fresh = { food: 60, play: 45, hatched_at: stamp, food_at: stamp, play_at: stamp };
+  applyNeeds(fresh, now);
+  assert.equal(fresh.food, 60);
+  assert.equal(fresh.play, 45);
+  assert.equal(fresh.food_at, stamp);
+  // Three full days since the stamps: 60 - 30 = 30 and 45 - 30 = 15.
+  const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
+  const pet = { food: 60, play: 45, hatched_at: threeDaysAgo, food_at: threeDaysAgo, play_at: threeDaysAgo };
+  applyNeeds(pet, now);
+  assert.equal(pet.food, 30);
+  assert.equal(pet.play, 15);
+  // The stamp advances by whole days only. Here the stamp sat exactly three
+  // days back, so the new stamp lands exactly on `now` with no remainder.
+  assert.equal(pet.food_at.getTime(), now.getTime());
+});
+
+test('needs fall back to hatched_at when their stamps are null', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const twoDaysAgo = new Date(now.getTime() - 2 * 86400000);
+  const pet = { food: 60, play: 45, hatched_at: twoDaysAgo, food_at: null, play_at: null };
+  applyNeeds(pet, now);
+  assert.equal(pet.food, 40, '60 - 2 days of decay');
+  assert.equal(pet.play, 25, '45 - 2 days of decay');
+});
+
+test('needs clamp at 0 and never go negative', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const tenDaysAgo = new Date(now.getTime() - 10 * 86400000);
+  const pet = { food: 20, play: 90, hatched_at: tenDaysAgo, food_at: tenDaysAgo, play_at: tenDaysAgo };
+  applyNeeds(pet, now);
+  assert.equal(pet.food, 0);
+  assert.equal(pet.play, 0);
+});
+
+test('needs carry the unfinished part of a day over', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  // 1.5 days since the stamp: one full day counts, half a day is pending.
+  const stamp = new Date(now.getTime() - 1.5 * 86400000);
+  const pet = { food: 60, hatched_at: stamp, food_at: stamp, play: 45, play_at: stamp };
+  applyNeeds(pet, now);
+  assert.equal(pet.food, 50);
+  assert.equal(pet.food_at.getTime(), stamp.getTime() + 86400000, 'new stamp is baseline plus one day');
+  // Applying it again at the same moment changes nothing: idempotent.
+  const again = { ...pet };
+  applyNeeds(again, now);
+  assert.equal(again.food, 50);
+  assert.equal(again.food_at.getTime(), pet.food_at.getTime());
+});
+
+test('feeding still adds on top of the decay', async () => {
+  const token = tokenFor('needs-tester', 'nadia');
+  // Hatch right here: the fresh pet's meters start at their defaults.
+  let v = await (await call('POST', '/api/hatch', { token })).json();
+  assert.equal(v.pet.food, 40);
+  v = await (await call('POST', '/api/feed', { token })).json();
+  assert.equal(v.pet.food, 60, 'feed still behaves as before');
 });
 
 test('the pet state carries happiness beside food and play', async () => {
