@@ -350,6 +350,41 @@ test('tapping the pet says hi and the pet reads as tappable', () => {
     'the pet sticker does not show a pointer cursor');
 });
 
+test('every species has five age lines in its own voice', () => {
+  for (const key of SPECIES) {
+    const e = EMOJI[key];
+    assert.ok(Array.isArray(e.ages) && e.ages.length === 5, key + ' needs five age lines');
+    const opening = e.line.slice(0, e.line.indexOf('.'));
+    e.ages.forEach((age, i) => {
+      assert.equal(typeof age, 'string');
+      assert.ok(age.trim().length > 0, key + ' age line ' + i + ' is empty');
+      assert.equal(age.slice(0, age.indexOf('.')), opening,
+        key + ' age line ' + i + ' must keep the species opening sentence');
+    });
+  }
+});
+
+test('lineFor picks the bucket by days', () => {
+  const manifest = require('../public/emoji-manifest.js');
+  assert.equal(typeof manifest.lineFor, 'function', 'the manifest exports lineFor');
+  const lineFor = manifest.lineFor;
+  const e = EMOJI.turtle;
+
+  for (const days of [undefined, null, 0]) {
+    assert.equal(lineFor('turtle', days), e.line, 'days ' + days + ' keeps the hatch-day line');
+  }
+  assert.equal(lineFor('turtle', 1), e.ages[0]);
+  assert.equal(lineFor('turtle', 6), e.ages[0]);
+  assert.equal(lineFor('turtle', 7), e.ages[1]);
+  assert.equal(lineFor('turtle', 29), e.ages[1]);
+  assert.equal(lineFor('turtle', 30), e.ages[2]);
+  assert.equal(lineFor('turtle', 99), e.ages[2]);
+  assert.equal(lineFor('turtle', 100), e.ages[3]);
+  assert.equal(lineFor('turtle', 364), e.ages[3]);
+  assert.equal(lineFor('turtle', 365), e.ages[4]);
+  assert.equal(lineFor('turtle', 2000), e.ages[4]);
+});
+
 test('every visual dapp.json test carries id, impact and a readiness assertion', () => {
   const dapp = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'dapp.json'), 'utf8'));
   const visual = dapp.tests.filter((t) => t.visual);

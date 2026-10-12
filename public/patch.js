@@ -3,6 +3,7 @@
   'use strict';
 
   var EMOJI = window.PATCH_EMOJI.EMOJI;
+  var lineFor = window.PATCH_EMOJI.lineFor;
   var params = new URLSearchParams(window.location.search);
   // Staging-only demo: the screenshot/check route has no platform token, so
   // with ?demo=1 the pet beat renders from a fixed demo pet. It never calls
@@ -222,7 +223,7 @@
   // ---- rendering ---------------------------------------------------------
 
   function speciesLine() {
-    var line = EMOJI[state.pet.species].line;
+    var line = lineFor(state.pet.species, state.pet.days);
     if (state.pet.name) return line.replace(/^[^.]*\./, state.pet.name + '.');
     return line;
   }
@@ -514,14 +515,25 @@
   });
 
   function hatch() {
+    var HATCH_LOOPS = 3;
     eggBtn.hidden = true;
     var box = $('hatch-box');
     box.hidden = false;
     burst($('egg-fx'), 'sparkles');
     var chick = window.lottie.loadAnimation({
-      container: box, renderer: 'svg', loop: false, autoplay: true, path: src('hatch'),
+      container: box, renderer: 'svg', loop: true, autoplay: true, path: src('hatch'),
     });
+    var done = false;
     var handOver = function () {
+      if (done) return;
+      done = true;
+      if (current !== 'egg') {
+        // Skip already hatched and moved on: tear the animation down only.
+        try { chick.destroy(); } catch (e) {}
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+      }
       api('/api/hatch', {}).then(function (v) {
         state = v;
         try { chick.destroy(); } catch (e) {}
@@ -530,8 +542,15 @@
         show('pet', { justHatched: true });
       }).catch(function (err) { console.error(err); });
     };
-    // loop: false and hand over on complete. A looping hatch never hands over.
-    chick.addEventListener('complete', handOver);
+    // Play HATCH_LOOPS whole loops, then hand over — the same counted-loops
+    // pattern wake() uses. A looping hatch never emits complete.
+    var seen = 0;
+    var settle = function () {
+      if (++seen < HATCH_LOOPS) return;
+      chick.removeEventListener('loopComplete', settle);
+      handOver();
+    };
+    chick.addEventListener('loopComplete', settle);
     if (reduce) setTimeout(handOver, 600);
   }
 
@@ -693,7 +712,7 @@
   if (DEMO) {
     state = {
       pet: {
-        species: 'turtle', name: 'Demo', days: 3, food: 60, play: 45,
+        species: 'turtle', name: 'Demo', days: 8, food: 60, play: 45,
         plays: 2, step: 'home', agreed: false, vote: null, ball: true,
         happiness: 72,
         tricks: [{ trick: 'sit', done: false }, { trick: 'stay', done: false }, { trick: 'spin', done: false }],
