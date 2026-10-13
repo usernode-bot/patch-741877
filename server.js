@@ -64,6 +64,8 @@ function blankPet(userId, username) {
     play: 20,
     happiness: 50,
     happiness_at: null,
+    food_at: null,
+    play_at: null,
     plays: 0,
     step: 'egg',
     agreed: false,
@@ -96,6 +98,8 @@ function pgStore() {
           play       INTEGER NOT NULL DEFAULT 20,
           happiness  INTEGER NOT NULL DEFAULT 50,
           happiness_at TIMESTAMPTZ,
+          food_at    TIMESTAMPTZ,
+          play_at    TIMESTAMPTZ,
           plays      INTEGER NOT NULL DEFAULT 0,
           step       TEXT NOT NULL DEFAULT 'egg',
           agreed     BOOLEAN NOT NULL DEFAULT FALSE,
@@ -113,6 +117,8 @@ function pgStore() {
       `);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS chosen_species TEXT`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS happiness_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS food_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS play_at TIMESTAMPTZ`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_sit BOOLEAN NOT NULL DEFAULT FALSE`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_stay BOOLEAN NOT NULL DEFAULT FALSE`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_spin BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -137,7 +143,8 @@ function pgStore() {
     async save(pet) {
       const { rows } = await pool.query(`
         UPDATE pets SET username = $2, name = $3, food = $4, play = $5, happiness = $6,
-               happiness_at = $7, plays = $8, step = $9, agreed = $10, vote = $11,
+               happiness_at = $7, food_at = $20, play_at = $21, plays = $8, step = $9,
+               agreed = $10, vote = $11,
                ball = $12, chosen_species = $13, hatched_at = $14,
                trick_sit = $15, trick_stay = $16, trick_spin = $17,
                tricks_celebrated_at = $18, birthday = $19, updated_at = NOW()
@@ -146,7 +153,9 @@ function pgStore() {
           pet.plays, pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
           pet.hatched_at, !!pet.trick_sit, !!pet.trick_stay, !!pet.trick_spin,
           pet.tricks_celebrated_at === undefined ? null : pet.tricks_celebrated_at,
-          pet.birthday === undefined ? null : pet.birthday]);
+          pet.birthday === undefined ? null : pet.birthday,
+          pet.food_at === undefined ? null : pet.food_at,
+          pet.play_at === undefined ? null : pet.play_at]);
       return rows[0];
     },
     async reset(userId) {
@@ -267,6 +276,31 @@ function applyHappiness(pet, now) {
   pet.happiness = next;
   pet.happiness_at = now;
   return pet.happiness;
+}
+
+// Food and Play. Like happiness, they fade while nobody is looking: each
+// full 24 hour UTC day since the need was last counted takes 10 away (an
+// egg has no needs to fade yet). The stamp only ever advances by whole
+// days — falling back to hatched_at when it is null — so applying this
+// twice, or on a read that is never saved, gives the same result, and the
+// unfinished part of a day carries over. Clamped to 0..100; nothing bad
+// happens at 0 yet.
+const NEEDS_DECAY_PER_DAY = 10;
+const NEED_DEFAULTS = { food: 40, play: 20 };
+
+function applyNeeds(pet, now) {
+  if (!pet.hatched_at) return pet;
+  for (const need of ['food', 'play']) {
+    const stored = Number(pet[need]);
+    const value = Number.isFinite(stored) ? stored : NEED_DEFAULTS[need];
+    const baseline = pet[need + '_at'] ? new Date(pet[need + '_at']) : new Date(pet.hatched_at);
+    if (isNaN(baseline.getTime())) continue;
+    const elapsed = Math.max(0, Math.floor((now.getTime() - baseline.getTime()) / 86400000));
+    if (elapsed < 1) continue;
+    pet[need] = Math.max(0, Math.min(100, value - elapsed * NEEDS_DECAY_PER_DAY));
+    pet[need + '_at'] = new Date(baseline.getTime() + elapsed * 86400000);
+  }
+  return pet;
 }
 
 // The birthday is one plain YYYY-MM-DD string everywhere: the client saves
@@ -402,6 +436,7 @@ function handler(fn) {
   return async (req, res) => {
     try {
       const pet = await store.get(req.user.id, req.user.username);
+      applyNeeds(pet, new Date());
       const out = await fn(pet, req, res);
       if (out === false) return; // the handler already answered (a 400)
       const saved = out === 'skip-save' ? pet : await store.save(pet);
@@ -589,5 +624,5 @@ if (require.main === module) {
 
 module.exports = {
   app, start, store, speciesFor, STEPS, SPECIES, EMOJI, view,
-  FEEDBACK, PROPOSAL, applyHappiness, TRICKS, birthdayToday, birthdayKey,
+  FEEDBACK, PROPOSAL, applyHappiness, applyNeeds, NEEDS_DECAY_PER_DAY, TRICKS, birthdayToday, birthdayKey,
 };
