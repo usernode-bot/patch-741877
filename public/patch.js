@@ -602,7 +602,7 @@
     guard(function () { return goStep('feedback'); })();
   });
 
-  $('btn-about').addEventListener('click', function () { $('about').showModal(); });
+  $('btn-about').addEventListener('click', function () { renderNudgeToggle(); $('about').showModal(); });
   $('about-close').addEventListener('click', function () { $('about').close(); });
   $('btn-change-pet').addEventListener('click', function () { openChangePet(); });
   $('pet-cancel').addEventListener('click', function () { $('change-pet').close(); });
@@ -613,6 +613,80 @@
   $('btn-reset').addEventListener('click', guard(function () {
     return api('/api/reset', {}).then(function () { window.location.reload(); });
   }));
+
+  // ---- daily nudge -------------------------------------------------------
+  // One gentle ask a day when a meter runs low: the pet's own voice in a
+  // small card on arrival, with a device-local once-a-day stamp and an
+  // opt-out in About Patch. Storage is read inside the guard everywhere, so
+  // if it is refused the nudge never shows rather than showing every open.
+
+  // "Low" is the single threshold for a need: below this, the nudge may ask.
+  var NEED_LOW = 30;
+  var NUDGE_KEY = 'patch:nudge';       // local YYYY-MM-DD of the last nudge
+  var NUDGE_OFF_KEY = 'patch:nudge-off'; // '1' when turned off, absent when on
+
+  function todayKey() {
+    var d = new Date();
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function nudgeOff() {
+    try { return window.localStorage.getItem(NUDGE_OFF_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function setNudgeOff(off) {
+    try {
+      if (off) window.localStorage.setItem(NUDGE_OFF_KEY, '1');
+      else window.localStorage.removeItem(NUDGE_OFF_KEY);
+    } catch (e) {}
+  }
+
+  function renderNudgeToggle() {
+    var off = nudgeOff();
+    $('nudge-on').classList.toggle('on', !off);
+    $('nudge-off').classList.toggle('on', off);
+    $('nudge-on').setAttribute('aria-pressed', String(!off));
+    $('nudge-off').setAttribute('aria-pressed', String(off));
+  }
+
+  function maybeNudge() {
+    if (current !== 'home' || !state || !state.pet) return;
+    var food = state.pet.food;
+    var play = state.pet.play;
+    if (!(food < NEED_LOW || play < NEED_LOW)) return;
+    var kind = food < NEED_LOW ? 'food' : 'play';
+    try {
+      if (window.localStorage.getItem(NUDGE_OFF_KEY) === '1') return;
+      if (window.localStorage.getItem(NUDGE_KEY) === todayKey()) return;
+      window.localStorage.setItem(NUDGE_KEY, todayKey());
+    } catch (e) { return; }
+    $('nudge-title').textContent = state.pet.name || 'Your pet';
+    $('nudge-line').textContent =
+      kind === 'food'
+        ? (play < NEED_LOW ? 'Hungry, and a bit bored. Snack first?' : 'My tummy is rumbling. Snack?')
+        : "It's been quiet. Play with me?";
+    var go = $('nudge-go');
+    go.textContent = kind === 'food' ? 'Feed 🍎' : 'Play';
+    go.dataset.kind = kind;
+    // Rebuild the sticker from scratch: a previous nudge, a species swap or
+    // an old halo clone must not leak into this one.
+    var el = $('nudge-sticker');
+    el.innerHTML = '';
+    var prev = anims.get(el);
+    if (prev) { try { prev.destroy(); } catch (e) {} anims.delete(el); }
+    sticker(el, state.pet.species, true);
+    $('nudge').showModal();
+  }
+
+  $('nudge-go').addEventListener('click', function () {
+    var kind = $('nudge-go').dataset.kind || 'food';
+    $('nudge').close();
+    $(kind === 'food' ? 'btn-feed' : 'btn-play').click();
+  });
+  $('nudge-later').addEventListener('click', function () { $('nudge').close(); });
+  $('nudge-on').addEventListener('click', function () { setNudgeOff(false); renderNudgeToggle(); });
+  $('nudge-off').addEventListener('click', function () { setNudgeOff(true); renderNudgeToggle(); });
 
   // ---- trick checklist ---------------------------------------------------
 
@@ -742,6 +816,7 @@
     api('/api/state').then(function (v) {
       state = v;
       show(state.pet.step);
+      maybeNudge();
     }).catch(function (err) {
       if (String(err.message).indexOf(' 401') === -1) console.error(err);
     });
