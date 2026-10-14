@@ -154,6 +154,43 @@ a { color: var(--pill); font-weight: 700; }
 .skip:active { transform: translateY(3px); box-shadow: 0 0 0 var(--ink); }
 body.home .skip { display: none; }
 
+/* A failed Skip says so in a small speech bubble, built from the same
+   ingredients as the pet's bubble: cream fill, ink border, and a tail
+   pointing up at the button it belongs to. No new colours. */
+.skip-note {
+  position: relative;
+  align-self: flex-end;
+  max-width: 260px;
+  margin-top: 4px;
+  background: var(--card);
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  padding: 6px 14px;
+  font-family: var(--font-game);
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.skip-note::before {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: -8px;
+  width: 12px;
+  height: 12px;
+  background: var(--card);
+  border-left: 2.5px solid var(--ink);
+  border-top: 2.5px solid var(--ink);
+  transform: rotate(45deg);
+}
+#skip-note {
+  position: fixed;
+  top: calc(58px + var(--top));
+  right: 12px;
+  z-index: 20;
+}
+body.home #skip-note { display: none; }
+
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* ---- stage, sticker, effects -------------------------------------------- */

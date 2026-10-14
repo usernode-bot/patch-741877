@@ -460,6 +460,63 @@ test('lineFor picks the bucket by days', () => {
   assert.equal(lineFor('turtle', 2000), e.ages[4]);
 });
 
+// --- skip ---
+
+test('skip moves forward from every beat', async () => {
+  const token = tokenFor('skip-tester', 'sam');
+
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.step, 'egg');
+  assert.ok(!v.pet.agreed, 'nothing agreed yet');
+  assert.ok(!v.pet.vote, 'nothing voted yet');
+
+  // The egg skip hatches, exactly like the button does.
+  v = await (await call('POST', '/api/hatch', { token })).json();
+  assert.equal(v.pet.step, 'pet');
+
+  for (const step of ['feedback', 'proposal', 'try', 'vote', 'shipped']) {
+    v = await (await call('POST', '/api/step', { token, body: { step } })).json();
+    assert.equal(v.pet.step, step);
+  }
+
+  // The shipped skip ships, exactly like the button does.
+  v = await (await call('POST', '/api/ship', { token })).json();
+  assert.equal(v.pet.step, 'home');
+  assert.equal(v.pet.ball, true);
+
+  // Skipping never agrees and never votes on the player's behalf.
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.ok(!v.pet.agreed, 'skip must not agree');
+  assert.ok(!v.pet.vote, 'skip must not vote');
+});
+
+test('a failed skip says so and never locks the buttons', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.match(
+    html, /<p id="skip-note"[^>]*role="status"/,
+    'the top-right skip has no status note');
+  assert.match(
+    html, /<p id="fb-skip-note"[^>]*role="status"/,
+    'the feedback-card skip has no status note');
+
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+  assert.ok(
+    js.includes('Tap Skip to try again.'),
+    'patch.js has no skip-failed message');
+  assert.ok(
+    js.includes("'skip-note'") && js.includes("'fb-skip-note'"),
+    'patch.js does not wire both skip notes');
+  assert.match(
+    js, /\$\('skip-note'\)\.hidden = true[\s\S]*\$\('fb-skip-note'\)\.hidden = true/,
+    'show() does not clear the skip notes on a step change');
+  assert.doesNotMatch(
+    js, /Promise\.resolve\(fn\(\)\)/,
+    'guard still drops a synchronous throw on the floor, locking every button');
+
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
+  assert.match(css, /\.skip-note/, 'patch.css has no .skip-note style');
+});
+
 test('every visual dapp.json test carries id, impact and a readiness assertion', () => {
   const dapp = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'dapp.json'), 'utf8'));
   const visual = dapp.tests.filter((t) => t.visual);

@@ -440,6 +440,9 @@
       s.hidden = s.getAttribute('data-beat') !== beat;
     });
     skipBtn.hidden = step === 'home';
+    // A step change from any button clears a stale skip-failed note.
+    $('skip-note').hidden = true;
+    $('fb-skip-note').hidden = true;
 
     if (step === 'egg') {
       preload(['hatch', 'sparkles', state.pet.species]);
@@ -482,8 +485,31 @@
     return function () {
       if (busy) return;
       busy = true;
-      Promise.resolve(fn()).catch(function (err) { console.error(err); })
+      // Resolving inside a Promise constructor keeps fn synchronous but a
+      // synchronous throw in fn lands in .catch too. A plain resolved
+      // promise around the call would let the throw escape before .catch
+      // existed, so busy stayed true and every guarded button, Skip
+      // included, went dead.
+      new Promise(function (resolve) { resolve(fn()); })
+        .catch(function (err) { console.error(err); })
         .then(function () { busy = false; });
+    };
+  }
+
+  // A failed Skip must not look dead. The wrapper hides the note, runs the
+  // step, and on a failure says so in the note; the button stays tappable,
+  // so tapping Skip again retries. guard() releases the busy lock either way.
+  var SKIP_FAILED = "That didn't go through. Tap Skip to try again.";
+
+  function skipping(noteId, fn) {
+    return function () {
+      var note = $(noteId);
+      note.hidden = true;
+      return fn().catch(function (err) {
+        console.error(err);
+        note.textContent = SKIP_FAILED;
+        note.hidden = false;
+      });
     };
   }
 
@@ -634,7 +660,7 @@
       setTimeout(function () { guard(function () { return goStep('proposal'); })(); }, 700);
     });
   }));
-  $('btn-fb-skip').addEventListener('click', guard(function () { return goStep('proposal'); }));
+  $('btn-fb-skip').addEventListener('click', guard(skipping('fb-skip-note', function () { return goStep('proposal'); })));
 
   // ---- beat 4, proposal --------------------------------------------------
 
@@ -692,7 +718,7 @@
     proposal: 'try', try: 'vote', vote: 'shipped', shipped: 'home',
   };
 
-  skipBtn.addEventListener('click', guard(function () {
+  skipBtn.addEventListener('click', guard(skipping('skip-note', function () {
     var next = NEXT[current];
     if (!next) return;
     if (current === 'egg') {
@@ -702,7 +728,7 @@
       return api('/api/ship', {}).then(function (v) { state = v; show('home'); });
     }
     return goStep(next);
-  }));
+  })));
 
   // ---- boot --------------------------------------------------------------
 
