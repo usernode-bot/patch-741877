@@ -460,6 +460,31 @@ test('lineFor picks the bucket by days', () => {
   assert.equal(lineFor('turtle', 2000), e.ages[4]);
 });
 
+// --- daily nudge ---
+
+test('the nudge dialog and its About toggle are in the shell markup', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.ok(html.includes('<dialog id="nudge"'), 'the nudge dialog is missing');
+  for (const id of ['nudge-title', 'nudge-sticker', 'nudge-line', 'nudge-go', 'nudge-later']) {
+    assert.ok(html.includes('id="' + id + '"'), 'index.html has no ' + id);
+  }
+  const aboutStart = html.indexOf('<dialog id="about">');
+  const aboutEnd = html.indexOf('</dialog>', aboutStart);
+  const about = html.slice(aboutStart, aboutEnd);
+  assert.ok(about.includes('id="nudge-on"'), 'the Daily nudge On control is not in About');
+  assert.ok(about.includes('id="nudge-off"'), 'the Daily nudge Off control is not in About');
+  assert.ok(about.includes('Daily nudge'), 'About has no Daily nudge label');
+  assert.ok(html.includes('usernode-dev-console@1'), 'the dev console forwarder must stay');
+});
+
+test('the nudge script wires the daily stamp, the off switch and the boot check', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+  assert.ok(js.includes("'patch:nudge'"), 'patch.js has no daily stamp key');
+  assert.ok(js.includes("'patch:nudge-off'"), 'patch.js has no off-switch key');
+  assert.equal((js.match(/var NEED_LOW = \d+;/g) || []).length, 1, 'NEED_LOW is defined exactly once');
+  assert.match(js, /maybeNudge\(\);/, 'boot never calls the nudge check');
+});
+
 test('every visual dapp.json test carries id, impact and a readiness assertion', () => {
   const dapp = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'dapp.json'), 'utf8'));
   const visual = dapp.tests.filter((t) => t.visual);

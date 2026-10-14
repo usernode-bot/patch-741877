@@ -294,6 +294,14 @@
   <h2>About Patch</h2>
   <p>A tiny app built on Homeroom. Hatch a pet, feed it, play with it, and help decide what it does next.</p>
   <p class="small">Animated emoji by Google, CC BY 4.0, from the Noto Animated Emoji set.</p>
+  <div class="field">
+    <label>Daily nudge</label>
+    <div class="segmented" role="group" aria-label="Daily nudge">
+      <button type="button" class="seg" id="nudge-on" aria-pressed="true">On</button>
+      <button type="button" class="seg" id="nudge-off" aria-pressed="false">Off</button>
+    </div>
+    <p class="small">One gentle reminder a day when Food or Play is low.</p>
+  </div>
   <div class="actions">
     <button type="button" class="btn" id="about-close">Close</button>
   </div>
@@ -316,6 +324,17 @@
   <div class="actions">
     <button type="button" class="btn primary" id="pet-save">Save</button>
     <button type="button" class="btn" id="pet-cancel">Cancel</button>
+  </div>
+</dialog>
+
+<dialog id="nudge">
+  <h2 id="nudge-title"></h2>
+  <div class="celebrate-sticker sticker" id="nudge-sticker" aria-hidden="true"></div>
+  <p class="line" id="nudge-line"></p>
+  <p class="small">Just once a day. You can turn this off in About Patch.</p>
+  <div class="actions">
+    <button type="button" class="btn primary" id="nudge-go"></button>
+    <button type="button" class="btn" id="nudge-later">Later</button>
   </div>
 </dialog>
 

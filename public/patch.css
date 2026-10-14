@@ -626,6 +626,11 @@ dialog .seg { height: 44px; min-width: 0; }
 dialog .segmented .seg { border-left: 0; }
 dialog .segmented .seg + .seg { border-left: 1.5px solid var(--ink); }
 
+/* The nudge card centres like the celebration card it borrows the sticker
+   box from, and its one line of pet speech reads a touch heavier. */
+#nudge { text-align: center; }
+#nudge .line { font-weight: 800; }
+
 @media (prefers-reduced-motion: reduce) {
   #celebrate .celebrate-card { animation: none; }
   .egg { animation: none; }
