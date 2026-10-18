@@ -425,6 +425,31 @@ test('tapping the pet says hi and the pet reads as tappable', () => {
     'the pet sticker does not show a pointer cursor');
 });
 
+test('the menu is navigation chrome: client-side, never a stored step', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
+
+  // The home footer offers the menu, and the menu beat exists hidden.
+  assert.match(html, /id="home-foot"[^>]*>[\s\S]*?id="btn-menu"/, 'the home footer has no Menu link');
+  assert.match(html, /<section class="beat" data-beat="menu" hidden>/, 'the menu beat is missing or not hidden');
+  for (const id of ['menu-pet', 'menu-tricks', 'menu-change-pet', 'menu-about', 'btn-menu-back', 'menu-reset']) {
+    assert.ok(html.includes('id="' + id + '"'), 'the menu is missing #' + id);
+  }
+
+  // Wiring: show('menu') directly — a goStep('menu') would POST /api/step,
+  // which the server's STEPS list rejects with a 400.
+  assert.match(js, /\$\('btn-menu'\)\.addEventListener\('click'/, 'the Menu link is not wired');
+  assert.ok(js.includes("show('menu')"), 'patch.js never shows the menu beat');
+  assert.ok(!js.includes("goStep('menu')"), 'the menu must not be sent to /api/step');
+  assert.match(js, /skipBtn\.hidden = homeLike/, 'the Skip button must hide on the menu too');
+
+  // The staging-only Start over link mirrors the footer's, and the rows
+  // carry their hint style.
+  assert.match(js, /\$\('menu-reset'\)\.hidden = !state\.staging/, 'the menu reset link does not mirror staging');
+  assert.match(css, /\.trick-check \.why\s*\{/, 'the menu hint has no style');
+});
+
 test('every species has five age lines in its own voice', () => {
   for (const key of SPECIES) {
     const e = EMOJI[key];

@@ -256,6 +256,7 @@
     $('bridge').hidden = isHome || state.pet.plays < 2;
     $('home-foot').hidden = !isHome;
     $('btn-reset').hidden = !state.staging;
+    $('menu-reset').hidden = !state.staging;
     renderBirthday();
     renderTricks();
   }
@@ -433,13 +434,16 @@
   function show(step, opts) {
     opts = opts || {};
     current = step;
+    // 'menu' is home-like for the chrome: the Skip button hides and the h1
+    // keeps no Skip padding, but it is never sent to /api/step.
+    var homeLike = step === 'home' || step === 'menu';
     var beat = step === 'home' ? 'pet' : step;
     app.setAttribute('data-step', step);
-    document.body.classList.toggle('home', step === 'home');
+    document.body.classList.toggle('home', homeLike);
     Array.prototype.forEach.call(document.querySelectorAll('.beat'), function (s) {
       s.hidden = s.getAttribute('data-beat') !== beat;
     });
-    skipBtn.hidden = step === 'home';
+    skipBtn.hidden = homeLike;
 
     if (step === 'egg') {
       preload(['hatch', 'sparkles', state.pet.species]);
@@ -605,6 +609,19 @@
   $('btn-about').addEventListener('click', function () { $('about').showModal(); });
   $('about-close').addEventListener('click', function () { $('about').close(); });
   $('btn-change-pet').addEventListener('click', function () { openChangePet(); });
+
+  // ---- the menu ----------------------------------------------------------
+  // Navigation chrome only: every row is a client-side show(), never a
+  // goStep(), so the server's step stays where the member left it.
+  $('btn-menu').addEventListener('click', function () { show('menu'); });
+  $('btn-menu-back').addEventListener('click', function () { show('home'); });
+  $('menu-pet').addEventListener('click', function () { show('home'); });
+  $('menu-tricks').addEventListener('click', function () { show('home'); });
+  $('menu-change-pet').addEventListener('click', function () { openChangePet(); });
+  $('menu-about').addEventListener('click', function () { $('about').showModal(); });
+  $('menu-reset').addEventListener('click', guard(function () {
+    return api('/api/reset', {}).then(function () { window.location.reload(); });
+  }));
   $('pet-cancel').addEventListener('click', function () { $('change-pet').close(); });
   $('pet-save').addEventListener('click', guard(savePet));
 
