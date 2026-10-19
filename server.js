@@ -80,6 +80,8 @@ function blankPet(userId, username) {
     // Reduced motion. null follows the system's prefers-reduced-motion
     // setting; 'on' and 'off' are the member's own choice and win over it.
     motion: null,
+    // Sound. null means on (the default); 'off' is the member's own mute.
+    sound: null,
   };
 }
 
@@ -129,6 +131,7 @@ function pgStore() {
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS tricks_celebrated_at TIMESTAMPTZ`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS birthday DATE`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS motion TEXT`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS sound TEXT`);
       await pool.query(`COMMENT ON TABLE pets IS 'staging:private'`);
     },
     async get(userId, username) {
@@ -152,7 +155,7 @@ function pgStore() {
                agreed = $10, vote = $11,
                ball = $12, chosen_species = $13, hatched_at = $14,
                trick_sit = $15, trick_stay = $16, trick_spin = $17,
-               tricks_celebrated_at = $18, birthday = $19, motion = $22, updated_at = NOW()
+               tricks_celebrated_at = $18, birthday = $19, motion = $22, sound = $23, updated_at = NOW()
         WHERE user_id = $1 RETURNING *
       `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.happiness, pet.happiness_at === undefined ? null : pet.happiness_at,
           pet.plays, pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
@@ -161,7 +164,8 @@ function pgStore() {
           pet.birthday === undefined ? null : pet.birthday,
           pet.food_at === undefined ? null : pet.food_at,
           pet.play_at === undefined ? null : pet.play_at,
-          pet.motion === undefined ? null : pet.motion]);
+          pet.motion === undefined ? null : pet.motion,
+          pet.sound === undefined ? null : pet.sound]);
       return rows[0];
     },
     async reset(userId) {
@@ -244,6 +248,9 @@ function view(pet) {
       // prefers-reduced-motion setting. The client computes the effective
       // state: a saved choice wins, the OS setting is the default.
       motion: pet.motion || null,
+      // The member's sound choice, or null for sound on. The client computes
+      // the effective state the same way it does for motion.
+      sound: pet.sound || null,
     },
     username: pet.username,
     // Staging previews get a Start over link in the home footer, because a
@@ -573,6 +580,19 @@ app.post('/api/motion', handler((pet, req, res) => {
     return false;
   }
   pet.motion = motion;
+}));
+
+// The member's sound preference. 'on' is sound on (the default, so null
+// stores the same thing); 'off' is the mute. Only the two values are valid,
+// the same contract as /api/motion. A member preference, not pet state, so
+// it works at any step.
+app.post('/api/sound', handler((pet, req, res) => {
+  const sound = req.body && req.body.sound;
+  if (sound !== 'on' && sound !== 'off') {
+    res.status(400).json({ error: 'sound must be on or off' });
+    return false;
+  }
+  pet.sound = sound;
 }));
 
 // Staging only: wipe the caller's OWN row so onboarding can be replayed in a

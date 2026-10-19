@@ -581,6 +581,134 @@
     return api('/api/step', { step: step }).then(function (v) { state = v; show(step); });
   }
 
+  // ---- sound ----
+  // Patch's voice is a tiny WebAudio synth: no audio files, no dependencies.
+  // Every pet sound (the egg's crack, the hatch chirp, feeding, playing and
+  // the hi greeting) routes through playSfx(), which checks the member's
+  // Sound toggle at call time, so turning it off mutes the very next sound —
+  // and silences anything still ringing. The choice is saved per member via
+  // /api/sound, and mirrored to storage so a reload has it before the server
+  // answers; sound is on by default. The AudioContext is only ever created
+  // inside a tap or click handler: started later, from a timer or a render,
+  // phones refuse it or keep it silent.
+
+  var soundParam = params.get('sound');
+  var soundChoice = (soundParam === 'off' || soundParam === 'on') ? soundParam : null;
+  try {
+    if (!soundChoice) soundChoice = window.localStorage.getItem('patch:sound') || null;
+  } catch (e) {}
+  var audioCtx = null;
+  var liveSfx = [];
+
+  function soundOn() { return soundChoice !== 'off'; }
+
+  function rememberSound(value) {
+    try {
+      if (value) window.localStorage.setItem('patch:sound', value);
+      else window.localStorage.removeItem('patch:sound');
+    } catch (e) {}
+  }
+
+  function audio() {
+    if (!audioCtx) {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  // One small synth voice per sound: a tone that glides between two pitches
+  // inside a short envelope. Quiet on purpose — it sits under the speech
+  // bubbles, not over them.
+  var SFX = {
+    crack: { type: 'triangle', from: 180, to: 90, dur: 0.09 },
+    hatch: { type: 'square', from: 330, to: 660, dur: 0.35 },
+    feed: { type: 'square', from: 150, to: 90, dur: 0.16 },
+    play: { type: 'triangle', from: 220, to: 520, dur: 0.3 },
+    hi: { type: 'sine', from: 700, to: 950, dur: 0.12 },
+  };
+
+  function playSfx(name) {
+    if (!soundOn()) return;
+    var voice = SFX[name];
+    var ctx = audio();
+    if (!voice || !ctx) return;
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = voice.type;
+    osc.frequency.setValueAtTime(voice.from, t);
+    osc.frequency.exponentialRampToValueAtTime(voice.to, t + voice.dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.08, t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + voice.dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + voice.dur + 0.05);
+    liveSfx.push(osc);
+    osc.onended = function () {
+      liveSfx = liveSfx.filter(function (o) { return o !== osc; });
+    };
+  }
+
+  // Muting is immediate: anything still ringing is stopped, not faded out.
+  function silenceSfx() {
+    liveSfx.slice().forEach(function (osc) {
+      try { osc.stop(); } catch (e) {}
+    });
+    liveSfx.length = 0;
+  }
+
+  // The one place the effective sound state is applied: the data-* markers
+  // the page carries, the toggle's label and its announced state. Sound is
+  // audio only — no classes, no styles — so toggling cannot shift the layout.
+  function applySound() {
+    var muted = !soundOn();
+    app.dataset.sound = muted ? 'muted' : 'on';
+    app.dataset.soundSource = soundChoice ? 'member' : 'default';
+    app.dataset.petSfx = muted ? 'silent' : 'plays';
+    var egg = $('egg');
+    if (egg) egg.dataset.crack = muted ? 'silent' : 'plays';
+    var btn = $('menu-sound');
+    if (btn) {
+      btn.dataset.state = muted ? 'off' : 'on';
+      btn.setAttribute('aria-pressed', String(muted));
+    }
+    var word = $('sound-state');
+    if (word) word.textContent = muted ? 'off' : 'on';
+    var status = $('sound-status');
+    if (status) {
+      status.textContent = 'Sound ' + (muted ? 'off' : 'on');
+      // The check runner reads visible text only, and this element is
+      // deliberately invisible; the attribute mirrors the announcement so
+      // the dapp.json check can pin it.
+      status.dataset.announce = 'Sound ' + (muted ? 'off' : 'on');
+    }
+    if (muted) silenceSfx();
+  }
+
+  $('menu-sound').addEventListener('click', guard(function () {
+    var prev = soundChoice;
+    soundChoice = soundOn() ? 'off' : 'on';
+    applySound();
+    // The demo routes have no member to save for; storage stands in.
+    if (DEMO || isDemo) { rememberSound(soundChoice); return; }
+    return api('/api/sound', { sound: soundChoice }).then(function (v) {
+      state = v;
+      soundChoice = v.pet.sound || null;
+      rememberSound(soundChoice);
+      applySound();
+    }).catch(function (err) {
+      // The server answer wins, so a failed toggle rolls the row back.
+      soundChoice = prev;
+      applySound();
+      throw err;
+    });
+  }));
+
   // ---- beat 1, the egg ---------------------------------------------------
 
   var taps = 0;
@@ -590,6 +718,7 @@
   eggBtn.addEventListener('click', function () {
     if (taps >= 3) return;
     taps += 1;
+    playSfx('crack');
     var cracks = eggBtn.querySelectorAll('.crack');
     cracks[taps - 1].classList.add('on');
     eggBtn.classList.remove('shake', 'shake2');
@@ -606,6 +735,7 @@
 
   function hatch() {
     var HATCH_LOOPS = 3;
+    playSfx('hatch');
     eggBtn.hidden = true;
     var box = $('hatch-box');
     box.hidden = false;
@@ -647,6 +777,7 @@
   // ---- beat 2 / home -----------------------------------------------------
 
   $('btn-feed').addEventListener('click', guard(function () {
+    playSfx('feed');
     wake($('pet-sticker'), 1);
     burst($('pet-fx'), 'apple');
     say($('pet-speech'), feedLines[feedIndex % feedLines.length]);
@@ -660,6 +791,7 @@
   }));
 
   $('btn-play').addEventListener('click', guard(function () {
+    playSfx('play');
     if (state.pet.ball) {
       ballSequence($('pet-sticker'), $('pet-ball'), $('pet-speech'), $('pet-fx'));
     } else {
@@ -680,6 +812,7 @@
   // API call and must not take the shared busy lock.
   $('pet-sticker').addEventListener('click', function () {
     if (!$('pet-ball').hidden) return; // a ball round owns the pet's motion
+    playSfx('hi');
     wake($('pet-sticker'), 1);
     hop($('pet-sticker'));
     say($('pet-speech'), hiLines[hiIndex % hiLines.length]);
@@ -758,6 +891,7 @@
   $('seg-after').addEventListener('click', function () { setMode('after'); });
 
   $('btn-try-play').addEventListener('click', function () {
+    playSfx('play');
     if (tryMode === 'after') {
       ballSequence($('try-sticker'), $('try-ball'), $('try-speech'), $('try-fx'));
     } else {
@@ -809,9 +943,10 @@
 
   // ---- boot --------------------------------------------------------------
 
-  // Apply the motion state before the first render, so the egg, the toggle
-  // and the markers are right from the first paint.
+  // Apply the motion and sound states before the first render, so the egg,
+  // the toggles and the markers are right from the first paint.
   applyMotion();
+  applySound();
 
   // Staging-only demo: the screenshot and check route carries no platform
   // token, so with ?demo=1 the pet beat renders from a fixed demo pet. It
@@ -855,7 +990,14 @@
         motionChoice = v.pet.motion || null;
         rememberMotion(motionChoice);
       }
+      // The server holds the member's saved sound choice too; a ?sound=
+      // check param pins it for its one load instead, the same way as above.
+      if (!soundParam) {
+        soundChoice = v.pet.sound || null;
+        rememberSound(soundChoice);
+      }
       applyMotion();
+      applySound();
       show(state.pet.step);
     }).catch(function (err) {
       if (String(err.message).indexOf(' 401') === -1) console.error(err);

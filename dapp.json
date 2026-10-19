@@ -139,6 +139,62 @@
       "name": "Reduced motion leaves the home layout in place",
       "path": "/?demo=1&motion=off",
       "expectSelector": "#app[data-motion='reduced'] #meter-happy"
+    },
+    {
+      "name": "The footer menu has a Sound toggle",
+      "path": "/?demo=1",
+      "expectSelector": "#menu-sound"
+    },
+    {
+      "name": "Sound off mutes every pet sound immediately",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#app[data-sound='muted']"
+    },
+    {
+      "name": "Sound on restores every pet sound",
+      "path": "/?demo=1&sound=on",
+      "expectSelector": "#app[data-sound='on']"
+    },
+    {
+      "name": "The hatch crack respects the toggle",
+      "path": "/?sound=off",
+      "expectSelector": "#egg[data-crack='silent']"
+    },
+    {
+      "name": "Feed and play sounds respect the toggle",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#app[data-pet-sfx='silent']"
+    },
+    {
+      "name": "An explicit choice drives the sound state at member level",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#app[data-sound-source='member']"
+    },
+    {
+      "name": "The restored choice shows on the Sound toggle",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#menu-sound[data-state='off']"
+    },
+    {
+      "name": "The Sound toggle state is exposed to screen readers",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#menu-sound[aria-pressed='true']"
+    },
+    {
+      "name": "The live region announces the muted state",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#sound-status[data-announce='Sound off']"
+    },
+    {
+      "name": "The seven story beats stay with sound off",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#app[data-sound='muted'][data-story-beats='7']"
+    },
+    {
+      "name": "Sound off leaves the home layout in place",
+      "path": "/?demo=1&sound=off",
+      "expectSelector": "#app[data-sound='muted'] #meter-happy"
     }
-  ]
+  ],
+  "bootParams": ["sound"]
 }
