@@ -19,7 +19,6 @@
     else token = window.localStorage.getItem('patch:token') || '';
   } catch (e) {}
   var authHeaders = token ? { 'x-usernode-token': token } : {};
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var SPECIES_KEYS = Object.keys(EMOJI).filter(function (k) { return EMOJI[k].species; });
   var pickedSpecies = null;
 
@@ -219,6 +218,92 @@
       ballEl.classList.remove('rolling', 'on', 'out');
     }, 2500);
   }
+
+  // ---- reduced motion ----------------------------------------------------
+  // Reduced motion is the system's prefers-reduced-motion setting, until the
+  // member picks: an explicit choice (saved per member via /api/motion, and
+  // mirrored to storage so a reload has it before the server answers) wins
+  // over the OS. When motion is reduced the egg stops wobbling, the pet
+  // stops bouncing, and movement transitions collapse to quick fades; sound
+  // and the seven story beats are untouched — the mode is visual only.
+
+  var motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var systemReduce = motionQuery.matches;
+  var motionParam = params.get('motion');
+  var motionChoice = (motionParam === 'off' || motionParam === 'on') ? motionParam : null;
+  try {
+    if (!motionChoice) motionChoice = window.localStorage.getItem('patch:motion') || null;
+  } catch (e) {}
+  var reduce = false;
+
+  function rememberMotion(value) {
+    try {
+      if (value) window.localStorage.setItem('patch:motion', value);
+      else window.localStorage.removeItem('patch:motion');
+    } catch (e) {}
+  }
+
+  // The one place the effective motion state is applied: the CSS class, the
+  // data-* markers the page carries, and the toggle's label.
+  function applyMotion() {
+    reduce = motionChoice ? motionChoice === 'off' : systemReduce;
+    document.documentElement.classList.toggle('reduced', reduce);
+    app.dataset.motion = reduce ? 'reduced' : 'full';
+    app.dataset.motionSource = motionChoice ? 'member' : (systemReduce ? 'system' : 'default');
+    app.dataset.storyBeats = String(
+      document.querySelectorAll('.beat:not([data-beat="menu"])').length);
+    if (reduce) {
+      // Quick fades instead of movement, and nothing else changes: the mode
+      // is visual only, so sound and the story beats stay exactly as they are.
+      app.dataset.fades = 'quick';
+      app.dataset.scope = 'visual-only';
+    } else {
+      delete app.dataset.fades;
+      delete app.dataset.scope;
+    }
+    var egg = $('egg');
+    if (egg) egg.dataset.wobble = reduce ? 'off' : 'on';
+    ['pet-sticker', 'try-sticker', 'ship-sticker'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.dataset.bounce = reduce ? 'off' : 'on';
+    });
+    renderMotionToggle();
+  }
+
+  function renderMotionToggle() {
+    var btn = $('menu-motion');
+    if (!btn) return;
+    var word = $('motion-state');
+    if (word) word.textContent = reduce ? 'off' : 'on';
+    btn.dataset.state = reduce ? 'reduced' : 'full';
+    btn.setAttribute('aria-pressed', String(reduce));
+  }
+
+  $('menu-motion').addEventListener('click', guard(function () {
+    var prev = motionChoice;
+    motionChoice = reduce ? 'on' : 'off';
+    applyMotion();
+    // The demo routes have no member to save for; storage stands in.
+    if (DEMO || isDemo) { rememberMotion(motionChoice); return; }
+    return api('/api/motion', { motion: motionChoice }).then(function (v) {
+      state = v;
+      motionChoice = v.pet.motion || null;
+      rememberMotion(motionChoice);
+      applyMotion();
+    }).catch(function (err) {
+      // The server answer wins, so a failed toggle rolls the row back.
+      motionChoice = prev;
+      applyMotion();
+      throw err;
+    });
+  }));
+
+  function onSystemMotion() {
+    systemReduce = motionQuery.matches;
+    applyMotion();
+  }
+  if (motionQuery.addEventListener) motionQuery.addEventListener('change', onSystemMotion);
+  else if (motionQuery.addListener) motionQuery.addListener(onSystemMotion);
 
   // ---- rendering ---------------------------------------------------------
 
@@ -723,6 +808,10 @@
 
   // ---- boot --------------------------------------------------------------
 
+  // Apply the motion state before the first render, so the egg, the toggle
+  // and the markers are right from the first paint.
+  applyMotion();
+
   // Staging-only demo: the screenshot and check route carries no platform
   // token, so with ?demo=1 the pet beat renders from a fixed demo pet. It
   // never calls the API; a real visitor without the flag is unaffected.
@@ -758,6 +847,14 @@
   } else if (token) {
     api('/api/state').then(function (v) {
       state = v;
+      // The server holds the member's saved choice. A ?motion= check param
+      // pins the choice for its one load instead, so the state is readable
+      // without a write; a real visitor is unaffected.
+      if (!motionParam) {
+        motionChoice = v.pet.motion || null;
+        rememberMotion(motionChoice);
+      }
+      applyMotion();
       show(state.pet.step);
     }).catch(function (err) {
       if (String(err.message).indexOf(' 401') === -1) console.error(err);

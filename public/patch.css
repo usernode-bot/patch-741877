@@ -632,8 +632,16 @@ dialog .seg { height: 44px; min-width: 0; }
 dialog .segmented .seg { border-left: 0; }
 dialog .segmented .seg + .seg { border-left: 1.5px solid var(--ink); }
 
+/* Quick fade: the only motion reduced motion keeps. Movement transitions
+   collapse to this 0.15s opacity ramp; it never changes geometry, so
+   enabling reduced motion cannot shift the layout. */
+@keyframes un-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  #celebrate .celebrate-card { animation: none; }
+  #celebrate .celebrate-card { animation: un-fade 0.15s ease; }
   .egg { animation: none; }
   .egg.shake, .egg.shake2 { animation: none; }
   .pet-box.hop, .pet-box.leap { transition: none; transform: none; }
@@ -642,4 +650,20 @@ dialog .segmented .seg + .seg { border-left: 1.5px solid var(--ink); }
   .fill { transition: none; }
   .pet-idle, .pet-shadow, .cloud { animation: none; }
   .btn, .skip { transition: none; }
+  .speech, .ball-slot, .fx svg, .hatch-box svg { animation: un-fade 0.15s ease; }
 }
+
+/* The Motion toggle's reduced mode applies the same rules through a class,
+   so the member's choice works whatever the OS setting is. Keep this block
+   in sync with the media query above — tests/patch.test.js checks both. */
+html.reduced #celebrate .celebrate-card { animation: un-fade 0.15s ease; }
+html.reduced .egg { animation: none; }
+html.reduced .egg.shake, html.reduced .egg.shake2 { animation: none; }
+html.reduced .pet-box.hop, html.reduced .pet-box.leap { transition: none; transform: none; }
+html.reduced .ball-slot.rolling { transition: none; }
+html.reduced .sticker > svg.halo { transition: none; }
+html.reduced .fill { transition: none; }
+html.reduced .pet-idle, html.reduced .pet-shadow, html.reduced .cloud { animation: none; }
+html.reduced .btn, html.reduced .skip { transition: none; }
+html.reduced .speech, html.reduced .ball-slot,
+html.reduced .fx svg, html.reduced .hatch-box svg { animation: un-fade 0.15s ease; }

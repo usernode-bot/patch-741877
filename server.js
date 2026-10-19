@@ -77,6 +77,9 @@ function blankPet(userId, username) {
     tricks_celebrated_at: null,
     hatched_at: null,
     birthday: null,
+    // Reduced motion. null follows the system's prefers-reduced-motion
+    // setting; 'on' and 'off' are the member's own choice and win over it.
+    motion: null,
   };
 }
 
@@ -124,6 +127,7 @@ function pgStore() {
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS trick_spin BOOLEAN NOT NULL DEFAULT FALSE`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS tricks_celebrated_at TIMESTAMPTZ`);
       await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS birthday DATE`);
+      await pool.query(`ALTER TABLE pets ADD COLUMN IF NOT EXISTS motion TEXT`);
       await pool.query(`COMMENT ON TABLE pets IS 'staging:private'`);
     },
     async get(userId, username) {
@@ -147,7 +151,7 @@ function pgStore() {
                agreed = $10, vote = $11,
                ball = $12, chosen_species = $13, hatched_at = $14,
                trick_sit = $15, trick_stay = $16, trick_spin = $17,
-               tricks_celebrated_at = $18, birthday = $19, updated_at = NOW()
+               tricks_celebrated_at = $18, birthday = $19, motion = $22, updated_at = NOW()
         WHERE user_id = $1 RETURNING *
       `, [pet.user_id, pet.username, pet.name, pet.food, pet.play, pet.happiness, pet.happiness_at === undefined ? null : pet.happiness_at,
           pet.plays, pet.step, pet.agreed, pet.vote, pet.ball, pet.chosen_species === undefined ? null : pet.chosen_species,
@@ -155,7 +159,8 @@ function pgStore() {
           pet.tricks_celebrated_at === undefined ? null : pet.tricks_celebrated_at,
           pet.birthday === undefined ? null : pet.birthday,
           pet.food_at === undefined ? null : pet.food_at,
-          pet.play_at === undefined ? null : pet.play_at]);
+          pet.play_at === undefined ? null : pet.play_at,
+          pet.motion === undefined ? null : pet.motion]);
       return rows[0];
     },
     async reset(userId) {
@@ -234,6 +239,10 @@ function view(pet) {
       tricks_celebrated: !!pet.tricks_celebrated_at,
       birthday: birthdayKey(pet.birthday),
       birthday_today: birthdayToday(pet, new Date()),
+      // The member's motion choice, or null to follow the system's
+      // prefers-reduced-motion setting. The client computes the effective
+      // state: a saved choice wins, the OS setting is the default.
+      motion: pet.motion || null,
     },
     username: pet.username,
     // Staging previews get a Start over link in the home footer, because a
@@ -549,6 +558,20 @@ app.post('/api/trick', handler((pet, req, res) => {
   if (!pet.tricks_celebrated_at && TRICKS.every((t) => !!pet['trick_' + t])) {
     pet.tricks_celebrated_at = new Date();
   }
+}));
+
+// The member's motion preference. 'on' is full motion, 'off' is reduced
+// motion (the egg stops wobbling, the pet stops bouncing, transitions
+// collapse to quick fades); null would follow the system setting, and the
+// toggle never needs to clear the choice, so only the two values are valid.
+// This is a member preference, not pet state, so it works at any step.
+app.post('/api/motion', handler((pet, req, res) => {
+  const motion = req.body && req.body.motion;
+  if (motion !== 'on' && motion !== 'off') {
+    res.status(400).json({ error: 'motion must be on or off' });
+    return false;
+  }
+  pet.motion = motion;
 }));
 
 // Staging only: wipe the caller's OWN row so onboarding can be replayed in a

@@ -75,6 +75,70 @@
         "public/patch.css",
         "server.js"
       ]
+    },
+    {
+      "id": "motion.egg-wobble",
+      "name": "Reduced motion stops the egg wobble",
+      "path": "/?motion=off",
+      "expectSelector": "#egg[data-wobble='off']",
+      "visual": true,
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css"
+      ]
+    },
+    {
+      "id": "motion.pet-still",
+      "name": "Reduced motion stops the pet bounce",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#pet-sticker[data-bounce='off']",
+      "visual": true,
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css"
+      ]
+    },
+    {
+      "name": "Reduced motion collapses transitions to quick fades",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-fades='quick']"
+    },
+    {
+      "name": "The footer menu has a Motion toggle",
+      "path": "/?demo=1",
+      "expectSelector": "#menu-motion"
+    },
+    {
+      "name": "An explicit choice drives the motion state at member level",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-motion-source='member']"
+    },
+    {
+      "name": "The restored choice shows on the Motion toggle",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#menu-motion[data-state='reduced']"
+    },
+    {
+      "name": "The seven story beats stay with reduced motion",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-story-beats='7']"
+    },
+    {
+      "name": "Reduced motion is visual only, so sound is untouched",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-scope='visual-only']"
+    },
+    {
+      "name": "The Motion toggle label reflects the state",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#menu-motion[aria-pressed='true']"
+    },
+    {
+      "name": "Reduced motion leaves the home layout in place",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-motion='reduced'] #meter-happy"
     }
   ]
 }
