@@ -19,7 +19,12 @@
     else token = window.localStorage.getItem('patch:token') || '';
   } catch (e) {}
   var authHeaders = token ? { 'x-usernode-token': token } : {};
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Motion: the effective setting is the member's saved choice when it is
+  // set (state.pet.reduced_motion), else the device's own preference. The
+  // CSS keys on one body class, so applyMotion() is the single switch both
+  // the animations and the transitions read.
+  var motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var reduce = motionQuery.matches;
   var SPECIES_KEYS = Object.keys(EMOJI).filter(function (k) { return EMOJI[k].species; });
   var pickedSpecies = null;
 
@@ -44,6 +49,39 @@
 
   var app = $('app');
   var skipBtn = $('skip');
+
+  // The one motion switch. Everything the CSS reduces hangs off
+  // body.reduced-motion, and every reduce branch here reads `reduce`.
+  function applyMotion() {
+    var saved = state && state.pet ? state.pet.reduced_motion : null;
+    reduce = saved === true || saved === false ? saved : motionQuery.matches;
+    document.body.classList.toggle('reduced-motion', reduce);
+    var btn = $('menu-motion');
+    btn.textContent = reduce ? 'Motion: reduced' : 'Motion: full';
+    btn.classList.toggle('on', reduce);
+    btn.setAttribute('aria-pressed', String(reduce));
+    btn.dataset.motion = reduce ? 'reduced' : 'full';
+  }
+  applyMotion();
+  // Only has an effect while the choice is unset: a saved choice wins over
+  // the device either way.
+  if (motionQuery.addEventListener) motionQuery.addEventListener('change', applyMotion);
+  else if (motionQuery.addListener) motionQuery.addListener(applyMotion);
+
+  // Tapping the Motion row flips the choice and saves it per member. It does
+  // not re-render beats or move the current step.
+  function toggleMotion() {
+    var next = !reduce;
+    if (DEMO) {
+      state.pet.reduced_motion = next;
+      applyMotion();
+      return Promise.resolve();
+    }
+    return api('/api/motion', { reduced: next }).then(function (v) {
+      state = v;
+      applyMotion();
+    });
+  }
 
   // ---- api ---------------------------------------------------------------
   // Every action is a POST. A GET on an action route falls through to the
@@ -433,6 +471,7 @@
 
   function show(step, opts) {
     opts = opts || {};
+    applyMotion();
     current = step;
     // 'menu' is home-like for the chrome: the Skip button hides and the h1
     // keeps no Skip padding, but it is never sent to /api/step.
@@ -622,6 +661,12 @@
   $('menu-reset').addEventListener('click', guard(function () {
     return api('/api/reset', {}).then(function () { window.location.reload(); });
   }));
+  // The Motion row must be wired BEFORE the .trick-check loop below: that
+  // loop attaches a guard()ed handler to every .trick-check, this row
+  // included, and its guard sets busy — a Motion handler registered after it
+  // would be swallowed. Registered first, the Motion handler runs and the
+  // trick handler then sees busy and returns harmlessly.
+  $('menu-motion').addEventListener('click', guard(toggleMotion));
   $('pet-cancel').addEventListener('click', function () { $('change-pet').close(); });
   $('pet-save').addEventListener('click', guard(savePet));
 
@@ -735,6 +780,9 @@
         tricks: [{ trick: 'sit', done: false }, { trick: 'stay', done: false }, { trick: 'spin', done: false }],
         tricks_complete: false,
         tricks_celebrated: false,
+        // ?demo=1&motion=reduced|full renders a member who saved that choice;
+        // without the parameter the demo pet follows the device, as before.
+        reduced_motion: params.get('motion') === 'reduced' ? true : params.get('motion') === 'full' ? false : null,
         birthday: new Date().toISOString().slice(0, 10),
         birthday_today: true,
       },
@@ -746,6 +794,7 @@
       pet: {
         species: 'turtle', name: null, food: 60, play: 40, plays: 2,
         step: 'pet', agreed: false, vote: null, ball: false,
+        reduced_motion: null,
       },
       username: 'you',
       staging: false,
