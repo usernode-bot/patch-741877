@@ -75,6 +75,72 @@
         "public/patch.css",
         "server.js"
       ]
+    },
+    {
+      "name": "Reduced motion stops the egg wobble",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "body.reduced-motion #egg"
+    },
+    {
+      "name": "Reduced motion stops the pet bounce",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "body.reduced-motion .scene .pet-idle"
+    },
+    {
+      "name": "Transitions collapse to quick fades",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "body.reduced-motion #pet-ball"
+    },
+    {
+      "name": "The footer menu has a Motion toggle",
+      "path": "/?demo=1",
+      "expectSelector": "#menu-list #menu-motion",
+      "visual": true,
+      "id": "menu.motion-toggle",
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
+    },
+    {
+      "name": "The Motion toggle is saved per member",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "#menu-motion[aria-pressed=\"true\"]"
+    },
+    {
+      "name": "The saved choice is restored on reload",
+      "path": "/?demo=1&motion=full",
+      "expectSelector": "body:not(.reduced-motion) #menu-motion[aria-pressed=\"false\"]"
+    },
+    {
+      "name": "The seven beats are unchanged with reduced motion",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "#app[data-step=\"home\"] .beat[data-beat=\"pet\"]:not([hidden])"
+    },
+    {
+      "name": "Sound is unchanged with reduced motion",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "body.reduced-motion #btn-play"
+    },
+    {
+      "name": "The toggle label reflects the current state",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "#menu-motion[data-motion=\"reduced\"]"
+    },
+    {
+      "name": "Enabling reduced motion causes no layout shift",
+      "path": "/?demo=1&motion=reduced",
+      "expectSelector": "body.reduced-motion #trick-panel .trick-check[data-trick='sit']",
+      "visual": true,
+      "id": "pet.reduced-motion",
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css",
+        "server.js"
+      ]
     }
   ]
 }

@@ -71,6 +71,8 @@ pressed. The game type is a rounded system font stack (`--font-game` in
 "See what they said" note showing) with no token, no requests and nothing
 stored. Feed and Play animate and move the meters locally; the note's link
 does nothing there. The `pet.home` visual check in `dapp.json` uses it.
+`/?demo=1&motion=reduced|full` renders the demo pet as a member who saved
+that Motion choice; without the parameter it follows the device.
 
 ## Scripts
 

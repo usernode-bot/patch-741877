@@ -632,14 +632,28 @@ dialog .seg { height: 44px; min-width: 0; }
 dialog .segmented .seg { border-left: 0; }
 dialog .segmented .seg + .seg { border-left: 1.5px solid var(--ink); }
 
-@media (prefers-reduced-motion: reduce) {
-  #celebrate .celebrate-card { animation: none; }
-  .egg { animation: none; }
-  .egg.shake, .egg.shake2 { animation: none; }
-  .pet-box.hop, .pet-box.leap { transition: none; transform: none; }
-  .ball-slot.rolling { transition: none; }
-  .sticker > svg.halo { transition: none; }
-  .fill { transition: none; }
-  .pet-idle, .pet-shadow, .cloud { animation: none; }
-  .btn, .skip { transition: none; }
-}
+/* Reduced motion, driven by body.reduced-motion rather than a media query:
+   patch.js computes the effective setting (the member's saved Motion choice
+   when it is set, else prefers-reduced-motion) and toggles the class, so a
+   saved "full" can override a reducing device. Only animation, transition,
+   transform, opacity, visibility and the out-of-flow ball's left change
+   here, so nothing in the flow moves or resizes. */
+body.reduced-motion #celebrate .celebrate-card { animation: none; }
+body.reduced-motion .egg,
+body.reduced-motion .egg.shake,
+body.reduced-motion .egg.shake2 { animation: none; }
+body.reduced-motion .pet-box.hop,
+body.reduced-motion .pet-box.leap { transition: none; transform: none; }
+body.reduced-motion .pet-idle,
+body.reduced-motion .pet-shadow,
+body.reduced-motion .cloud { animation: none; }
+body.reduced-motion .fill { transition: none; }
+body.reduced-motion .btn,
+body.reduced-motion .skip { transition: none; }
+/* Quick fades replace movement: short opacity-only transitions, the ball
+   fading in and out in place (it is absolutely positioned, so left never
+   shifts the layout) while ballSequence() swaps its classes while invisible. */
+body.reduced-motion .sticker > svg.halo { transition: opacity 0.15s ease, visibility 0s linear 0.15s; }
+body.reduced-motion .ball-slot.rolling { transition: opacity 0.15s ease; }
+body.reduced-motion .ball-slot:not(.on) { opacity: 0; }
+body.reduced-motion .ball-slot.out { left: 40px; opacity: 0; }
