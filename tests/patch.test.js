@@ -21,7 +21,7 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
 });
 process.env.USERNODE_JWT_PUBLIC_KEY = publicKey;
 
-const { app, speciesFor, SPECIES, EMOJI, applyHappiness, applyNeeds, NEEDS_DECAY_PER_DAY } = require('../server.js');
+const { app, speciesFor, SPECIES, EMOJI, applyHappiness, applyNeeds, NEEDS_DECAY_PER_DAY, STEPS } = require('../server.js');
 
 function tokenFor(id, username) {
   return jwt.sign(
@@ -570,4 +570,11 @@ test('every visual dapp.json test carries id, impact and a readiness assertion',
     assert.ok(Array.isArray(t.impact) && t.impact.length, t.name + ' has no impact');
     assert.ok(t.expectSelector || t.expectText, t.name + ' has no expectSelector or expectText');
   }
+});
+
+test('patch has no sound, with or without reduced motion', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.ok(!js.includes('Audio(') && !js.includes('new Audio'), 'patch.js plays sound');
+  assert.ok(!html.includes('<audio'), 'index.html plays sound');
 });

@@ -518,6 +518,7 @@
 
   function show(step, opts) {
     opts = opts || {};
+    applyMotion();
     current = step;
     // 'menu' is home-like for the chrome: the Skip button hides and the h1
     // keeps no Skip padding, but it is never sent to /api/step.

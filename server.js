@@ -114,6 +114,7 @@ function pgStore() {
           tricks_celebrated_at TIMESTAMPTZ,
           birthday DATE,
           chosen_species TEXT,
+          motion TEXT,
           hatched_at TIMESTAMPTZ,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
