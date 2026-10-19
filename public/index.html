@@ -182,7 +182,36 @@
     <footer class="foot" id="home-foot" hidden>
       <button type="button" class="link" id="btn-change-pet">Change pet</button>
       <button type="button" class="link" id="btn-about">About Patch</button>
+      <button type="button" class="link" id="btn-menu">Menu</button>
       <button type="button" class="link" id="btn-reset" hidden>Start over</button>
+    </footer>
+  </section>
+
+  <!-- Menu — the home-only feature index. A client-side view, never a
+       stored step: show('menu') is called directly, so /api/step and the
+       server's STEPS list stay untouched and a reload lands on home. -->
+  <section class="beat" data-beat="menu" hidden>
+    <h1>Menu</h1>
+    <p class="hint">Everything Patch does, in one place.</p>
+    <section class="card">
+      <ul class="trick-list" id="menu-list">
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="menu-pet">Your pet <span class="why">feed, play, meters</span></button>
+        </li>
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="menu-tricks">Trick training <span class="why">sit, stay, spin</span></button>
+        </li>
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="menu-change-pet">Change pet</button>
+        </li>
+        <li class="trick-row">
+          <button type="button" class="trick-check" id="menu-about">About Patch</button>
+        </li>
+      </ul>
+    </section>
+    <footer class="foot" id="menu-foot">
+      <button type="button" class="link" id="btn-menu-back">Back to your pet</button>
+      <button type="button" class="link" id="menu-reset" hidden>Start over</button>
     </footer>
   </section>
 

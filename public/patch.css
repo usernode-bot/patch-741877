@@ -509,6 +509,12 @@ body.home .skip { display: none; }
 .trick-check.on::after { content: "✓"; }
 .trick-check:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
+/* The menu's rows reuse the checklist pill, but carry a quiet hint on the
+   right instead of the on-tick. The pill wraps, so the hint drops under
+   the label on a narrow screen. */
+.trick-check .why { color: var(--ink-3); font-size: 13px; font-weight: 400; }
+#menu-list .trick-check { flex-wrap: wrap; row-gap: 2px; }
+
 .celebrate-sticker {
   width: 128px;
   height: 128px;
