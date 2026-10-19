@@ -19,7 +19,8 @@
     else token = window.localStorage.getItem('patch:token') || '';
   } catch (e) {}
   var authHeaders = token ? { 'x-usernode-token': token } : {};
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var reduce = motionQuery.matches;
   var SPECIES_KEYS = Object.keys(EMOJI).filter(function (k) { return EMOJI[k].species; });
   var pickedSpecies = null;
 
@@ -44,6 +45,36 @@
 
   var app = $('app');
   var skipBtn = $('skip');
+
+  // ---- motion preference -------------------------------------------------
+  // The saved choice wins; with none, the device setting does. The body
+  // class is what patch.css keys on, so a saved "full" can override a
+  // reducing device (a media query alone could not).
+  function applyMotion() {
+    var saved = state && state.pet ? state.pet.reduced_motion : null;
+    reduce = saved === true || saved === false ? saved : motionQuery.matches;
+    document.body.classList.toggle('reduced-motion', reduce);
+    var btn = $('menu-motion');
+    btn.textContent = reduce ? 'Motion: reduced' : 'Motion: full';
+    btn.classList.toggle('on', reduce);
+    btn.setAttribute('aria-pressed', String(reduce));
+    btn.dataset.motion = reduce ? 'reduced' : 'full';
+  }
+
+  function toggleMotion() {
+    var next = !reduce;
+    if (DEMO) {
+      state.pet.reduced_motion = next;
+      applyMotion();
+      return Promise.resolve();
+    }
+    return api('/api/motion', { reduced: next }).then(function (v) {
+      state = v;
+      applyMotion();
+    });
+  }
+
+  applyMotion();
 
   // ---- api ---------------------------------------------------------------
   // Every action is a POST. A GET on an action route falls through to the
@@ -434,6 +465,9 @@
   function show(step, opts) {
     opts = opts || {};
     current = step;
+    // state is loaded by now on every boot path, so this is where a saved
+    // choice reaches the body class before the first beat renders.
+    applyMotion();
     // 'menu' is home-like for the chrome: the Skip button hides and the h1
     // keeps no Skip padding, but it is never sent to /api/step.
     var homeLike = step === 'home' || step === 'menu';
@@ -619,6 +653,11 @@
   $('menu-tricks').addEventListener('click', function () { show('home'); });
   $('menu-change-pet').addEventListener('click', function () { openChangePet(); });
   $('menu-about').addEventListener('click', function () { $('about').showModal(); });
+  // Registered before the trick checklist loop below: that loop guards every
+  // .trick-check (this row included) with the shared busy lock, so a handler
+  // attached after it would be swallowed.
+  $('menu-motion').addEventListener('click', guard(toggleMotion));
+  motionQuery.addEventListener('change', applyMotion);
   $('menu-reset').addEventListener('click', guard(function () {
     return api('/api/reset', {}).then(function () { window.location.reload(); });
   }));
@@ -737,6 +776,9 @@
         tricks_celebrated: false,
         birthday: new Date().toISOString().slice(0, 10),
         birthday_today: true,
+        // ?demo=1&motion=reduced|full renders a member who saved that choice.
+        reduced_motion: params.get('motion') === 'reduced' ? true
+          : params.get('motion') === 'full' ? false : null,
       },
       staging: true, feedback: null, proposal: null,
     };
@@ -746,6 +788,7 @@
       pet: {
         species: 'turtle', name: null, food: 60, play: 40, plays: 2,
         step: 'pet', agreed: false, vote: null, ball: false,
+        reduced_motion: null,
       },
       username: 'you',
       staging: false,

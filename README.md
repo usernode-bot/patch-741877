@@ -67,6 +67,9 @@ pressed. The game type is a rounded system font stack (`--font-game` in
 
 ## Demo preview
 
+`/?demo=1&motion=reduced` (or `motion=full`) boots the demo pet with that
+Motion choice saved, so both states are reachable without a token.
+
 `/?demo=pet` shows a fixed pet screen (a turtle, Food 60, Play 40, the
 "See what they said" note showing) with no token, no requests and nothing
 stored. Feed and Play animate and move the meters locally; the note's link

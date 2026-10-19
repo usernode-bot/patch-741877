@@ -632,14 +632,25 @@ dialog .seg { height: 44px; min-width: 0; }
 dialog .segmented .seg { border-left: 0; }
 dialog .segmented .seg + .seg { border-left: 1.5px solid var(--ink); }
 
-@media (prefers-reduced-motion: reduce) {
-  #celebrate .celebrate-card { animation: none; }
-  .egg { animation: none; }
-  .egg.shake, .egg.shake2 { animation: none; }
-  .pet-box.hop, .pet-box.leap { transition: none; transform: none; }
-  .ball-slot.rolling { transition: none; }
-  .sticker > svg.halo { transition: none; }
-  .fill { transition: none; }
-  .pet-idle, .pet-shadow, .cloud { animation: none; }
-  .btn, .skip { transition: none; }
-}
+/* Reduced motion. The device setting reaches these rules through
+   applyMotion() in patch.js, which adds body.reduced-motion; a saved "full"
+   choice can then override a reducing device, which a media query could not.
+   Only animation, transition, transform, opacity and the out-of-flow ball's
+   left change here, so nothing in the document flow moves. */
+body.reduced-motion #celebrate .celebrate-card { animation: none; }
+body.reduced-motion .egg,
+body.reduced-motion .egg.shake,
+body.reduced-motion .egg.shake2 { animation: none; }
+body.reduced-motion .pet-box.hop,
+body.reduced-motion .pet-box.leap { transition: none; transform: none; }
+body.reduced-motion .pet-idle,
+body.reduced-motion .pet-shadow,
+body.reduced-motion .cloud { animation: none; }
+body.reduced-motion .fill { transition: none; }
+body.reduced-motion .btn,
+body.reduced-motion .skip { transition: none; }
+/* Quick fades replace movement. */
+body.reduced-motion .sticker > svg.halo { transition: opacity 0.15s ease, visibility 0s linear 0.15s; }
+body.reduced-motion .ball-slot.rolling { transition: opacity 0.15s ease; }
+body.reduced-motion .ball-slot:not(.on) { opacity: 0; }
+body.reduced-motion .ball-slot.out { left: 40px; opacity: 0; }
