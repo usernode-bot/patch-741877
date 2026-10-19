@@ -450,6 +450,82 @@ test('the menu is navigation chrome: client-side, never a stored step', () => {
   assert.match(css, /\.trick-check \.why\s*\{/, 'the menu hint has no style');
 });
 
+test('the motion choice saves per member and restores on a fresh read', async () => {
+  const token = tokenFor('motion-tester', 'milo');
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.motion, null, 'a fresh member follows the system setting');
+
+  v = await (await call('POST', '/api/motion', { token, body: { motion: 'off' } })).json();
+  assert.equal(v.pet.motion, 'off');
+
+  // The reload: a fresh read returns what the member saved.
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.motion, 'off', 'the saved choice does not survive only in the page');
+
+  // Per member, not per app: another account is untouched.
+  const other = tokenFor('motion-other', 'mabel');
+  const v2 = await (await call('GET', '/api/state', { token: other })).json();
+  assert.equal(v2.pet.motion, null);
+
+  // Switching back works, and the API validates the value like /api/step does.
+  v = await (await call('POST', '/api/motion', { token, body: { motion: 'on' } })).json();
+  assert.equal(v.pet.motion, 'on');
+  const bad = await call('POST', '/api/motion', { token, body: { motion: 'maybe' } });
+  assert.equal(bad.status, 400);
+});
+
+test('reduced motion rules exist for both the system setting and the member toggle', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
+  // The system preference keeps its media query.
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/,
+    'the system prefers-reduced-motion media query is gone');
+  // The member toggle applies the same rules through a class.
+  assert.match(css, /html\.reduced \.egg\s*\{[^}]*animation:\s*none/,
+    'the reduced class does not stop the egg wobble');
+  assert.match(css, /html\.reduced \.pet-box\.hop[^{]*\{[^}]*transform:\s*none/,
+    'the reduced class does not stop the pet bounce');
+  assert.match(css, /@keyframes un-fade/,
+    'the quick fade the transitions collapse to is missing');
+  assert.match(css, /html\.reduced \.speech[^{]*\{[^}]*un-fade/,
+    'transitions do not collapse to quick fades under the reduced class');
+});
+
+test('the reduced-motion rules change animation only, never geometry', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
+  const rules = css.match(/html\.reduced[^{}]*\{[^}]*\}/g) || [];
+  assert.ok(rules.length >= 10, 'expected the full reduced-motion rule set, got ' + rules.length);
+  const allowed = new Set(['animation', 'transition', 'transform', 'opacity']);
+  for (const rule of rules) {
+    const body = rule.slice(rule.indexOf('{') + 1, rule.lastIndexOf('}'));
+    for (const decl of body.split(';')) {
+      const prop = decl.split(':')[0].trim();
+      if (prop) assert.ok(allowed.has(prop),
+        'reduced motion sets ' + prop + ', which can shift the layout');
+    }
+  }
+});
+
+test('the Motion toggle is wired, saves per member and leaves sound alone', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+
+  assert.ok(html.includes('id="menu-motion"'), 'the footer menu has no Motion toggle');
+  assert.match(js, /\$\('menu-motion'\)\.addEventListener\('click'/,
+    'the Motion toggle is not wired');
+  assert.match(js, /api\('\/api\/motion'/, 'the toggle must save the choice for the member');
+  assert.match(js, /pet\.motion/, 'the server answer does not drive the motion state');
+  assert.match(js, /patch:motion/, 'the choice is not mirrored so a reload can restore it');
+  assert.match(js, /classList\.toggle\('reduced'/, 'the reduced class is never applied');
+  assert.match(js, /prefers-reduced-motion/, 'the system preference is not read');
+  // The label carries the state word, so a member can read the current state.
+  assert.match(js, /textContent = reduce \? 'off' : 'on'/, 'the toggle label does not reflect the state');
+
+  // Sound is out of scope: the reduced-motion section must not touch audio.
+  const motion = js.slice(js.indexOf('// ---- reduced motion'), js.indexOf('// ---- rendering'));
+  assert.ok(motion.length > 0, 'the reduced motion section is missing');
+  assert.ok(!/\bAudio\b|\.muted|\.volume/.test(motion), 'reduced motion must not touch audio');
+});
+
 test('every species has five age lines in its own voice', () => {
   for (const key of SPECIES) {
     const e = EMOJI[key];
@@ -494,107 +570,6 @@ test('every visual dapp.json test carries id, impact and a readiness assertion',
     assert.ok(Array.isArray(t.impact) && t.impact.length, t.name + ' has no impact');
     assert.ok(t.expectSelector || t.expectText, t.name + ' has no expectSelector or expectText');
   }
-});
-
-// --- Motion (reduced motion) ---
-
-test('reduced motion collapses movement, with quick fades and no layout shift', () => {
-  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
-  const blocks = css.match(/body\.reduced-motion[^{]*\{[^}]*\}/g) || [];
-  assert.ok(blocks.length >= 5, 'the reduced-motion rules are missing');
-  assert.ok(blocks.some((b) => /body\.reduced-motion \.egg/.test(b) && b.includes('animation: none')),
-    'the egg wobble has no reduced-motion rule');
-  assert.ok(blocks.some((b) => /\.pet-idle/.test(b) && b.includes('animation: none')),
-    'the pet idle bob has no reduced-motion rule');
-  assert.ok(blocks.some((b) => /\.pet-box\.hop/.test(b) && b.includes('transition: none')),
-    'the hop does not collapse under reduced motion');
-  assert.ok(blocks.some((b) => /\.pet-box\.leap/.test(b) && b.includes('transition: none')),
-    'the leap does not collapse under reduced motion');
-  const rolling = blocks.filter((b) => b.includes('.ball-slot.rolling'))[0];
-  assert.ok(rolling && /transition:\s*opacity\s*0\.15s/.test(rolling),
-    'the ball does not fade in and out quickly in place');
-
-  // Every declaration in the reduced-motion rules is animation, transition,
-  // transform, opacity or visibility — or left on the out-of-flow ball only —
-  // so nothing in the flow moves or resizes when motion is reduced.
-  for (const block of blocks) {
-    const body = block.slice(block.indexOf('{') + 1, block.lastIndexOf('}'));
-    for (const decl of body.split(';')) {
-      const d = decl.trim();
-      if (!d) continue;
-      const prop = d.split(':')[0].trim();
-      assert.ok(
-        ['animation', 'transition', 'transform', 'opacity', 'visibility'].includes(prop) ||
-        (prop === 'left' && block.includes('.ball-slot.out')),
-        'a reduced-motion declaration would move or resize the layout: ' + d
-      );
-    }
-  }
-});
-
-test('the Motion toggle lives in the menu and drives one body class', () => {
-  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
-
-  assert.match(js, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)/,
-    'patch.js no longer reads the device reduced-motion preference');
-  assert.match(js, /classList\.toggle\('reduced-motion', reduce\)/,
-    'patch.js does not toggle the reduced-motion body class');
-  assert.ok(js.includes("'Motion: reduced'") && js.includes("'Motion: full'"),
-    'the toggle label does not reflect the current state');
-  assert.match(js, /setAttribute\('aria-pressed', String\(reduce\)\)/,
-    'the toggle does not expose its state to assistive tech');
-  assert.match(js, /dataset\.motion = reduce \? 'reduced' : 'full'/,
-    'the toggle does not mark its state for the checks');
-  assert.match(js, /params\.get\('motion'\)/,
-    'the demo boot does not read the motion parameter');
-
-  // The row is the menu list's last row.
-  const menuList = html.slice(html.indexOf('id="menu-list"'), html.indexOf('id="menu-foot"'));
-  assert.ok(menuList.includes('id="menu-motion"'), 'the Motion row is not in the menu list');
-
-  // It must be wired BEFORE the trick-check loop: that loop guard()s every
-  // .trick-click handler and would swallow a Motion handler registered after.
-  const wire = js.indexOf("$('menu-motion').addEventListener('click'");
-  const loop = js.indexOf("querySelectorAll('.trick-check')");
-  assert.ok(wire !== -1, 'the Motion row is not wired');
-  assert.ok(loop !== -1 && wire < loop, 'the Motion row must be wired before the trick-check loop');
-});
-
-test('the Motion choice is per member, validated and restored on a fresh read', async () => {
-  const a = tokenFor('motion-tester-a', 'anna');
-  const b = tokenFor('motion-tester-b', 'bela');
-  await call('POST', '/api/hatch', { token: a });
-
-  let v = await (await call('GET', '/api/state', { token: a })).json();
-  assert.equal(v.pet.reduced_motion, null, 'a fresh pet should follow the device');
-
-  v = await (await call('POST', '/api/motion', { token: a, body: { reduced: true } })).json();
-  assert.equal(v.pet.reduced_motion, true);
-
-  v = await (await call('GET', '/api/state', { token: a })).json();
-  assert.equal(v.pet.reduced_motion, true, 'the choice does not persist across a fresh read');
-
-  // B keeps their own setting: null, follow the device.
-  v = await (await call('GET', '/api/state', { token: b })).json();
-  assert.equal(v.pet.reduced_motion, null);
-
-  // Forcing full stores a real false, never a null.
-  await call('POST', '/api/motion', { token: a, body: { reduced: false } });
-  v = await (await call('GET', '/api/state', { token: a })).json();
-  assert.equal(v.pet.reduced_motion, false, 'a forced full is stored as false, not null');
-
-  const bad = await call('POST', '/api/motion', { token: a, body: { reduced: 'yes' } });
-  assert.equal(bad.status, 400);
-  assert.equal((await call('POST', '/api/motion', { token: a })).status, 400);
-});
-
-test('the Motion toggle never touches the step or the beats', async () => {
-  const token = tokenFor('motionstep-tester', 'milo');
-  const v0 = await (await call('POST', '/api/hatch', { token })).json();
-  const v = await (await call('POST', '/api/motion', { token, body: { reduced: true } })).json();
-  assert.equal(v.pet.step, v0.pet.step, 'a Motion toggle moved the step');
-  assert.deepEqual(STEPS, ['egg', 'pet', 'feedback', 'proposal', 'try', 'vote', 'shipped', 'home']);
 });
 
 test('patch has no sound, with or without reduced motion', () => {

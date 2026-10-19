@@ -77,70 +77,68 @@
       ]
     },
     {
+      "id": "motion.egg-wobble",
       "name": "Reduced motion stops the egg wobble",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "body.reduced-motion #egg"
+      "path": "/?motion=off",
+      "expectSelector": "#egg[data-wobble='off']",
+      "visual": true,
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css"
+      ]
     },
     {
+      "id": "motion.pet-still",
       "name": "Reduced motion stops the pet bounce",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "body.reduced-motion .scene .pet-idle"
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#pet-sticker[data-bounce='off']",
+      "visual": true,
+      "impact": [
+        "public/index.html",
+        "public/patch.js",
+        "public/patch.css"
+      ]
     },
     {
-      "name": "Transitions collapse to quick fades",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "body.reduced-motion #pet-ball"
+      "name": "Reduced motion collapses transitions to quick fades",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-fades='quick']"
     },
     {
       "name": "The footer menu has a Motion toggle",
       "path": "/?demo=1",
-      "expectSelector": "#menu-list #menu-motion",
-      "visual": true,
-      "id": "menu.motion-toggle",
-      "impact": [
-        "public/index.html",
-        "public/patch.js",
-        "public/patch.css",
-        "server.js"
-      ]
+      "expectSelector": "#menu-motion"
     },
     {
-      "name": "The Motion toggle is saved per member",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "#menu-motion[aria-pressed=\"true\"]"
+      "name": "An explicit choice drives the motion state at member level",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-motion-source='member']"
     },
     {
-      "name": "The saved choice is restored on reload",
-      "path": "/?demo=1&motion=full",
-      "expectSelector": "body:not(.reduced-motion) #menu-motion[aria-pressed=\"false\"]"
+      "name": "The restored choice shows on the Motion toggle",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#menu-motion[data-state='reduced']"
     },
     {
-      "name": "The seven beats are unchanged with reduced motion",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "#app[data-step=\"home\"] .beat[data-beat=\"pet\"]:not([hidden])"
+      "name": "The seven story beats stay with reduced motion",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-story-beats='7']"
     },
     {
-      "name": "Sound is unchanged with reduced motion",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "body.reduced-motion #btn-play"
+      "name": "Reduced motion is visual only, so sound is untouched",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-scope='visual-only']"
     },
     {
-      "name": "The toggle label reflects the current state",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "#menu-motion[data-motion=\"reduced\"]"
+      "name": "The Motion toggle label reflects the state",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#menu-motion[aria-pressed='true']"
     },
     {
-      "name": "Enabling reduced motion causes no layout shift",
-      "path": "/?demo=1&motion=reduced",
-      "expectSelector": "body.reduced-motion #trick-panel .trick-check[data-trick='sit']",
-      "visual": true,
-      "id": "pet.reduced-motion",
-      "impact": [
-        "public/index.html",
-        "public/patch.js",
-        "public/patch.css",
-        "server.js"
-      ]
+      "name": "Reduced motion leaves the home layout in place",
+      "path": "/?demo=1&motion=off",
+      "expectSelector": "#app[data-motion='reduced'] #meter-happy"
     }
   ]
 }

@@ -205,10 +205,13 @@
           <button type="button" class="trick-check" id="menu-change-pet">Change pet</button>
         </li>
         <li class="trick-row">
-          <button type="button" class="trick-check" id="menu-about">About Patch</button>
+          <!-- The Motion toggle: pressed = reduced motion. The state word is
+               the same .why slot the other rows use; patch.js keeps it in
+               step with the effective motion state. -->
+          <button type="button" class="trick-check" id="menu-motion" aria-pressed="false">Motion <span class="why" id="motion-state">on</span></button>
         </li>
         <li class="trick-row">
-          <button type="button" class="trick-check" id="menu-motion" aria-pressed="false" data-motion="full">Motion: full</button>
+          <button type="button" class="trick-check" id="menu-about">About Patch</button>
         </li>
       </ul>
     </section>
