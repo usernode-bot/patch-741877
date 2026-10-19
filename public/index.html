@@ -211,10 +211,17 @@
           <button type="button" class="trick-check" id="menu-motion" aria-pressed="false">Motion <span class="why" id="motion-state">on</span></button>
         </li>
         <li class="trick-row">
+          <!-- The Sound toggle: pressed = muted, on by default. The state
+               word is the .why slot like Motion's; #sound-status below is a
+               live region, so the state is announced as it changes. -->
+          <button type="button" class="trick-check" id="menu-sound" aria-pressed="false">Sound <span class="why" id="sound-state">on</span></button>
+        </li>
+        <li class="trick-row">
           <button type="button" class="trick-check" id="menu-about">About Patch</button>
         </li>
       </ul>
     </section>
+    <p class="visually-hidden" id="sound-status" role="status"></p>
     <footer class="foot" id="menu-foot">
       <button type="button" class="link" id="btn-menu-back">Back to your pet</button>
       <button type="button" class="link" id="menu-reset" hidden>Start over</button>

@@ -474,6 +474,30 @@ test('the motion choice saves per member and restores on a fresh read', async ()
   assert.equal(bad.status, 400);
 });
 
+test('the sound choice saves per member and restores on a fresh read', async () => {
+  const token = tokenFor('sound-tester', 'simon');
+  let v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.sound, null, 'a fresh member has sound on by default');
+
+  v = await (await call('POST', '/api/sound', { token, body: { sound: 'off' } })).json();
+  assert.equal(v.pet.sound, 'off');
+
+  // The reload: a fresh read returns what the member saved.
+  v = await (await call('GET', '/api/state', { token })).json();
+  assert.equal(v.pet.sound, 'off', 'the saved choice does not survive only in the page');
+
+  // Per member, not per app: another account is untouched.
+  const other = tokenFor('sound-other', 'sonja');
+  const v2 = await (await call('GET', '/api/state', { token: other })).json();
+  assert.equal(v2.pet.sound, null);
+
+  // Switching back works, and the API validates the value like /api/motion does.
+  v = await (await call('POST', '/api/sound', { token, body: { sound: 'on' } })).json();
+  assert.equal(v.pet.sound, 'on');
+  const bad = await call('POST', '/api/sound', { token, body: { sound: 'maybe' } });
+  assert.equal(bad.status, 400);
+});
+
 test('reduced motion rules exist for both the system setting and the member toggle', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
   // The system preference keeps its media query.
@@ -572,9 +596,55 @@ test('every visual dapp.json test carries id, impact and a readiness assertion',
   }
 });
 
-test('patch has no sound, with or without reduced motion', () => {
+test('every pet sound routes through the toggle: crack, hatch, feed, play, hi', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+  for (const name of ['crack', 'hatch', 'feed', 'play', 'hi']) {
+    assert.match(js, new RegExp("playSfx\\('" + name + "'\\)"),
+      'no sound is wired for ' + name);
+  }
+  // The guard is the mute: playSfx checks the toggle before any audio work,
+  // so turning it off silences the very next sound.
+  assert.match(js, /function playSfx\(name\)\s*\{\s*if \(!soundOn\(\)\) return;/,
+    'playSfx does not check the Sound toggle first');
+});
+
+test('the Sound toggle is wired, saves per member and announces its state', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
+
+  assert.ok(html.includes('id="menu-sound"'), 'the footer menu has no Sound toggle');
+  assert.match(html, /id="sound-status"[^>]*role="status"/,
+    'no live region announces the sound state to screen readers');
+  assert.match(js, /\$\('menu-sound'\)\.addEventListener\('click'/,
+    'the Sound toggle is not wired');
+  assert.match(js, /api\('\/api\/sound'/, 'the toggle must save the choice for the member');
+  assert.match(js, /pet\.sound/, 'the server answer does not drive the sound state');
+  assert.match(js, /patch:sound/, 'the choice is not mirrored so a reload can restore it');
+  assert.match(js, /soundOn/, 'the effective sound state is never computed');
+  // Announced twice over: the pressed state on the button, and the live
+  // region's state word.
+  assert.match(js, /setAttribute\('aria-pressed'/, 'the toggle state is not exposed to screen readers');
+  assert.match(js, /'Sound ' \+ \(/, 'the live region never carries the state word');
+
+  // Sound is audio only: the sound section must never touch classes or
+  // inline styles, so toggling cannot shift the layout.
+  const sound = js.slice(js.indexOf('// ---- sound'), js.indexOf('// ---- beat 1'));
+  assert.ok(sound.length > 0, 'the sound section is missing');
+  assert.ok(!/classList\.(add|remove|toggle)/.test(sound),
+    'the sound section sets a class, which can shift the layout');
+  assert.ok(!/\.style\./.test(sound),
+    'the sound section touches an inline style, which can shift the layout');
+});
+
+test('no stylesheet reacts to the sound state, so toggling cannot shift the layout', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.css'), 'utf8');
+  assert.ok(!/data-sound|data-pet-sfx|data-crack|menu-sound|sound-state/.test(css),
+    'a selector keys off the sound state, so muting changes how the page looks');
+});
+
+test('patch plays sound only through the guarded WebAudio synth, never an audio element', () => {
   const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'patch.js'), 'utf8');
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
-  assert.ok(!js.includes('Audio(') && !js.includes('new Audio'), 'patch.js plays sound');
-  assert.ok(!html.includes('<audio'), 'index.html plays sound');
+  assert.ok(!js.includes('Audio(') && !js.includes('new Audio'), 'patch.js builds an audio element');
+  assert.ok(!html.includes('<audio'), 'index.html plays sound through an element');
 });
